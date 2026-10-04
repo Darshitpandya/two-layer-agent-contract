@@ -1,0 +1,60 @@
+name: Contract Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            mcp-server/package-lock.json
+            gateway/extmcp-policy/package-lock.json
+            contract-tests/package-lock.json
+
+      # MCP server
+      - name: Install MCP server dependencies
+        run: npm ci
+        working-directory: mcp-server
+
+      - name: Build MCP server
+        run: npm run build
+        working-directory: mcp-server
+
+      # ExtMCP policy processor
+      - name: Install policy processor dependencies
+        run: npm ci
+        working-directory: gateway/extmcp-policy
+
+      - name: Build policy processor
+        run: npm run build
+        working-directory: gateway/extmcp-policy
+
+      - name: Run policy unit tests
+        run: npm test
+        working-directory: gateway/extmcp-policy
+
+      # Contract tests typecheck
+      - name: Install contract test dependencies
+        run: npm ci
+        working-directory: contract-tests
+
+      - name: Typecheck contract tests
+        run: npx tsc --noEmit
+        working-directory: contract-tests
+
+      # Note: Integration contract tests (allowed, hidden, denied, arg-sensitive, fail-closed)
+      # require a running agentgateway instance and lab MCP server, and are executed locally
+      # via ./scripts/run-lab.sh. They are not run in CI to keep this workflow fast and
+      # free of infrastructure dependencies.
+      # See contract-tests/README.md for how to run the full integration suite.

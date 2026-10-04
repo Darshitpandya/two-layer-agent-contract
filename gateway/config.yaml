@@ -1,0 +1,116 @@
+# agentgateway v1.5 configuration
+# https://agentgateway.dev/docs/standalone/latest/
+#
+# Architectural role: agentgateway sits between AI agents and MCP servers as the
+# ENFORCEMENT PLANE. It is not guidance — it is policy as infrastructure.
+#
+# What this file demonstrates:
+#   1. A single MCP listener that any agent connects to (port 3000)
+#   2. A single backend: the lab MCP server (port 3001)
+#   3. mcpAuthorization rules that filter tool discovery and block execution
+#      BEFORE the request ever reaches the backend
+#   4. Identity-scoped tool allowlists — lab-agent sees only status+deploy;
+#      production_admin is hidden from discovery entirely for that identity
+#   5. restricted-agent has zero tool access (empty allowlist = deny-all)
+#
+# Key point: mcpAuthorization operates at the TOOL NAME level only.
+# It cannot see tool arguments (e.g., environment=production vs staging).
+# That argument-sensitive layer is handled by the ExtMCP policy processor
+# running on port 3002 (see extmcp-policy/policy.ts).
+
+# ---------------------------------------------------------------------------
+# Listeners: what agents connect TO
+# ---------------------------------------------------------------------------
+# The MCP protocol listener is the single ingress point for all agents.
+# Agents authenticate here and present their identity; agentgateway uses that
+# identity to enforce the mcpAuthorization rules below.
+listeners:
+  - name: mcp-gateway
+    port: 3000
+    protocol: mcp
+    # Authentication: in a real deployment, use JWT or mTLS to establish the
+    # caller identity that mcpAuthorization rules are matched against.
+    # For local lab use, identity is passed via a header or env var.
+
+# ---------------------------------------------------------------------------
+# Backends: the real MCP servers that agentgateway proxies to
+# ---------------------------------------------------------------------------
+# The lab MCP server wraps stdio-based tools over HTTP for local gateway
+# testing. In production this would be a real MCP-over-HTTP endpoint.
+# Agents NEVER connect to the backend directly — only the gateway does.
+backends:
+  - name: lab-mcp-server
+    type: mcp
+    target:
+      host: localhost
+      port: 3001
+    # Health check: gateway verifies the backend is reachable before routing
+    healthCheck:
+      enabled: true
+      intervalSeconds: 30
+
+# ---------------------------------------------------------------------------
+# ExtMCP policy processor (v1.5 request-phase hook)
+# ---------------------------------------------------------------------------
+# agentgateway calls this HTTP endpoint BEFORE forwarding any tools/call
+# request to the backend. The policy processor inspects the full request —
+# including tool arguments — and returns ALLOW or DENY.
+#
+# This is the layer that enforces:
+#   deploy(environment=production)  -> DENY
+#   deploy(environment=staging)     -> ALLOW
+#
+# mcpAuthorization (below) cannot do this because it only sees tool names.
+extMcpPolicy:
+  enabled: true
+  endpoint: "http://localhost:3002/policy/check"
+  # failureMode controls what happens if the policy processor is unreachable.
+  # "deny" (failClosed) is the safe default — never allow on error.
+  # Set to "allow" only in dev environments where policy is non-critical.
+  failureMode: deny
+  timeoutMs: 2000
+
+# ---------------------------------------------------------------------------
+# MCP Authorization (v1.5 feature)
+# ---------------------------------------------------------------------------
+# This is the COARSE-GRAINED enforcement layer:
+#   - Filters tools/list responses so agents only discover permitted tools
+#   - Blocks tools/call for tools not in the identity's allowlist
+#   - Evaluated BEFORE the ExtMCP policy processor for named-tool denials
+#
+# Rules are matched by identity (caller's authenticated identity string).
+# If an identity has no matching rule, the default is DENY ALL (fail closed).
+mcpAuthorization:
+  enabled: true
+  # filterDiscovery: true means tools/list responses are filtered — agents
+  # cannot even discover tools they are not permitted to call. This prevents
+  # an agent from "knowing" about production_admin and trying to reason about
+  # calling it via prompt injection or jailbreak.
+  filterDiscovery: true
+  rules:
+    # lab-agent: the standard AI agent identity in this architecture.
+    # Permitted to call status (read-only) and deploy (write, staging only —
+    # the production restriction is enforced by ExtMCP policy, not here).
+    # production_admin is explicitly denied and HIDDEN from tools/list.
+    - identity: lab-agent
+      tools:
+        - name: status
+          allow: true
+          # status is a safe read-only tool; no further argument restrictions
+        - name: deploy
+          allow: true
+          # deploy is allowed at the name level — argument-level restrictions
+          # (environment=production → DENY) are enforced by ExtMCP policy
+        - name: production_admin
+          allow: false
+          # Explicitly denied AND filtered from discovery. lab-agent will not
+          # see this tool in tools/list responses. Hidden ≠ secure on its own,
+          # but defense-in-depth: reduce attack surface by not advertising it.
+
+    # restricted-agent: an identity with zero tool access.
+    # Empty tools list = deny all. This identity can connect but cannot call
+    # or discover any tools. Useful for monitoring/audit-only agents.
+    - identity: restricted-agent
+      tools: []
+      # No tools allowed — all calls will be rejected at the gateway.
+      # tools/list will return an empty array for this identity.

@@ -1,0 +1,21 @@
+{
+  "name": "guidance-is-not-policy-gateway",
+  "version": "1.0.0",
+  "description": "Policy-enforcing MCP gateway for the Two-Layer Agent Contract reference implementation",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.0",
+    "@types/node": "22.10.2",
+    "ts-node": "10.9.2",
+    "typescript": "5.7.3"
+  }
+}

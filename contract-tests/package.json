@@ -1,0 +1,26 @@
+{
+  "name": "guidance-is-not-policy-contract-tests",
+  "version": "1.0.0",
+  "description": "Contract tests proving the Two-Layer Agent Contract enforcement boundary",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --runInBand",
+    "test:allowed": "jest allowed",
+    "test:hidden": "jest hidden",
+    "test:denied": "jest denied",
+    "test:arg-sensitive": "jest arg-sensitive",
+    "test:fail-closed": "jest fail-closed"
+  },
+  "devDependencies": {
+    "@types/jest": "29.5.14",
+    "@types/node": "22.10.2",
+    "jest": "29.7.0",
+    "ts-jest": "29.2.5",
+    "typescript": "5.7.3"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testTimeout": 15000,
+    "testMatch": ["**/*.test.ts"]
+  }
+}
