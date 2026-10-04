@@ -1,116 +1,91 @@
-# agentgateway v1.5 configuration
-# https://agentgateway.dev/docs/standalone/latest/
+# agentgateway v1.5.0 configuration
+# Image: ghcr.io/agentgateway/agentgateway:v1.5.0
+# Docs:  https://agentgateway.dev/docs/standalone/latest/
 #
-# Architectural role: agentgateway sits between AI agents and MCP servers as the
-# ENFORCEMENT PLANE. It is not guidance — it is policy as infrastructure.
+# TWO-LAYER CONTRACT
+# ==================
 #
-# What this file demonstrates:
-#   1. A single MCP listener that any agent connects to (port 3000)
-#   2. A single backend: the lab MCP server (port 3001)
-#   3. mcpAuthorization rules that filter tool discovery and block execution
-#      BEFORE the request ever reaches the backend
-#   4. Identity-scoped tool allowlists — lab-agent sees only status+deploy;
-#      production_admin is hidden from discovery entirely for that identity
-#   5. restricted-agent has zero tool access (empty allowlist = deny-all)
+# LAYER 1 — mcpAuthorization (CEL rules on mcp.tool.name)
 #
-# Key point: mcpAuthorization operates at the TOOL NAME level only.
-# It cannot see tool arguments (e.g., environment=production vs staging).
-# That argument-sensitive layer is handled by the ExtMCP policy processor
-# running on port 3002 (see extmcp-policy/policy.ts).
+#   Runs at MCP protocol layer. Handles two enforcement properties:
+#
+#   HIDDEN:  Tools absent from the rules are filtered out of tools/list responses.
+#            The agent never sees production_admin in its tool surface.
+#
+#   DENIED:  The same absent tools are also denied if called directly via tools/call,
+#            bypassing normal discovery. Hidden ≠ denied — both properties are enforced.
+#
+#   DOCUMENTED LIMITATION (agentgateway v1.5):
+#   mcp.tool.arguments is NOT available in mcpAuthorization rules.
+#   This is the architectural gap the talk demonstrates. Source:
+#   https://agentgateway.dev/docs/standalone/latest/documentation/configuration/security/mcp-authz/
+#   → section "Tool arguments are not available during authorization"
+#
+# LAYER 2 — mcpGuardrails with gRPC ExtMCP processor
+#
+#   The ExtMCP processor receives the FULL tools/call request BEFORE it reaches
+#   the backend, including the parsed tool arguments.
+#
+#   This is where deploy(environment="production") is denied while
+#   deploy(environment="staging") is allowed — the argument-sensitive decision
+#   that mcpAuthorization cannot make.
+#
+#   failureMode: failClosed
+#   When the gRPC policy processor is unreachable, requests are NOT forwarded.
+#   Policy-engine failure semantics are explicit and testable.
+#
+# WHY THIS ARCHITECTURE:
+#   mcpAuthorization — MCP-aware, controls discovery and name-based call auth
+#   mcpGuardrails    — request-phase gRPC hook, sees full arguments, fail-mode explicit
+#   You need both for complete enforcement. Neither alone covers all cases.
 
-# ---------------------------------------------------------------------------
-# Listeners: what agents connect TO
-# ---------------------------------------------------------------------------
-# The MCP protocol listener is the single ingress point for all agents.
-# Agents authenticate here and present their identity; agentgateway uses that
-# identity to enforce the mcpAuthorization rules below.
-listeners:
-  - name: mcp-gateway
+gateways:
+  default:
     port: 3000
-    protocol: mcp
-    # Authentication: in a real deployment, use JWT or mTLS to establish the
-    # caller identity that mcpAuthorization rules are matched against.
-    # For local lab use, identity is passed via a header or env var.
 
-# ---------------------------------------------------------------------------
-# Backends: the real MCP servers that agentgateway proxies to
-# ---------------------------------------------------------------------------
-# The lab MCP server wraps stdio-based tools over HTTP for local gateway
-# testing. In production this would be a real MCP-over-HTTP endpoint.
-# Agents NEVER connect to the backend directly — only the gateway does.
-backends:
-  - name: lab-mcp-server
-    type: mcp
-    target:
-      host: localhost
-      port: 3001
-    # Health check: gateway verifies the backend is reachable before routing
-    healthCheck:
-      enabled: true
-      intervalSeconds: 30
+routes:
+- policies:
 
-# ---------------------------------------------------------------------------
-# ExtMCP policy processor (v1.5 request-phase hook)
-# ---------------------------------------------------------------------------
-# agentgateway calls this HTTP endpoint BEFORE forwarding any tools/call
-# request to the backend. The policy processor inspects the full request —
-# including tool arguments — and returns ALLOW or DENY.
-#
-# This is the layer that enforces:
-#   deploy(environment=production)  -> DENY
-#   deploy(environment=staging)     -> ALLOW
-#
-# mcpAuthorization (below) cannot do this because it only sees tool names.
-extMcpPolicy:
-  enabled: true
-  endpoint: "http://localhost:3002/policy/check"
-  # failureMode controls what happens if the policy processor is unreachable.
-  # "deny" (failClosed) is the safe default — never allow on error.
-  # Set to "allow" only in dev environments where policy is non-critical.
-  failureMode: deny
-  timeoutMs: 2000
+    # -----------------------------------------------------------------------
+    # LAYER 1: Tool-name authorization (mcpAuthorization)
+    # mcp.tool.name is available. mcp.tool.arguments is NOT (v1.5 limitation).
+    # -----------------------------------------------------------------------
+    mcpAuthorization:
+      rules:
+      # Allow status (read-only, no side effects)
+      - 'mcp.tool.name == "status"'
+      # Allow deploy — argument-sensitive restriction handled by Layer 2
+      - 'mcp.tool.name == "deploy"'
+      # production_admin: intentionally absent
+      #   HIDDEN: filtered from tools/list for all callers
+      #   DENIED: rejected if called directly, regardless of discovery
 
-# ---------------------------------------------------------------------------
-# MCP Authorization (v1.5 feature)
-# ---------------------------------------------------------------------------
-# This is the COARSE-GRAINED enforcement layer:
-#   - Filters tools/list responses so agents only discover permitted tools
-#   - Blocks tools/call for tools not in the identity's allowlist
-#   - Evaluated BEFORE the ExtMCP policy processor for named-tool denials
-#
-# Rules are matched by identity (caller's authenticated identity string).
-# If an identity has no matching rule, the default is DENY ALL (fail closed).
-mcpAuthorization:
-  enabled: true
-  # filterDiscovery: true means tools/list responses are filtered — agents
-  # cannot even discover tools they are not permitted to call. This prevents
-  # an agent from "knowing" about production_admin and trying to reason about
-  # calling it via prompt injection or jailbreak.
-  filterDiscovery: true
-  rules:
-    # lab-agent: the standard AI agent identity in this architecture.
-    # Permitted to call status (read-only) and deploy (write, staging only —
-    # the production restriction is enforced by ExtMCP policy, not here).
-    # production_admin is explicitly denied and HIDDEN from tools/list.
-    - identity: lab-agent
-      tools:
-        - name: status
-          allow: true
-          # status is a safe read-only tool; no further argument restrictions
-        - name: deploy
-          allow: true
-          # deploy is allowed at the name level — argument-level restrictions
-          # (environment=production → DENY) are enforced by ExtMCP policy
-        - name: production_admin
-          allow: false
-          # Explicitly denied AND filtered from discovery. lab-agent will not
-          # see this tool in tools/list responses. Hidden ≠ secure on its own,
-          # but defense-in-depth: reduce attack surface by not advertising it.
+    # -----------------------------------------------------------------------
+    # LAYER 2: Argument-sensitive enforcement (mcpGuardrails gRPC processor)
+    # The ExtMCP gRPC server receives the full tools/call request including
+    # tool arguments, and returns Pass or AuthorizationError.
+    # -----------------------------------------------------------------------
+    mcpGuardrails:
+      processors:
+      - kind: remote
+        # gRPC ExtMCP server — cleartext HTTP/2 (h2c) as required by agentgateway
+        # host.docker.internal resolves to host machine from Docker on macOS/Windows
+        # On Linux with --network=host, use localhost:9001 instead
+        host: "host.docker.internal:9001"
+        # failClosed: if the gRPC processor is unreachable, deny all requests
+        # Change to failOpen for high-availability requirements (see docs/production-hardening.md)
+        failureMode: failClosed
+        methods:
+          # Check tools/call BEFORE forwarding to backend (request phase)
+          tools/call: request
+          # tools/list: not intercepted — mcpAuthorization handles filtering
 
-    # restricted-agent: an identity with zero tool access.
-    # Empty tools list = deny all. This identity can connect but cannot call
-    # or discover any tools. Useful for monitoring/audit-only agents.
-    - identity: restricted-agent
-      tools: []
-      # No tools allowed — all calls will be rejected at the gateway.
-      # tools/list will return an empty array for this identity.
+  backends:
+  - mcp:
+      targets:
+      - name: lab-mcp-server
+        # MCP server implements streamable HTTP transport (MCP protocol over HTTP).
+        # host.docker.internal resolves to the Mac/Windows host from inside Docker.
+        # On Linux with --network=host, use localhost instead.
+        mcp:
+          host: "http://host.docker.internal:3001/mcp"

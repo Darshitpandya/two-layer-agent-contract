@@ -1,71 +1,107 @@
 /**
- * ExtMCP request-phase policy processor
+ * ExtMCP gRPC policy processor for guidance-is-not-policy.
  *
- * Architectural role:
- * agentgateway's mcpAuthorization layer enforces tool-name-level access control —
- * it can allow or deny a tool by name, but it cannot inspect the tool's arguments.
- * This server fills that gap.
+ * Implements the ExtMcp gRPC service from the agentgateway ExtMCP protocol:
+ * https://github.com/agentgateway/agentgateway/blob/main/crates/protos/proto/ext_mcp.proto
  *
- * agentgateway calls POST /policy/check BEFORE forwarding any tools/call request
- * to the backend MCP server. This processor inspects the full request (tool name
- * + arguments) and returns { allow: true } or { allow: false, reason: "..." }.
+ * Protocol: cleartext HTTP/2 (h2c), required by agentgateway for ExtMCP processors.
  *
- * Example decisions this server makes that gateway-level authz cannot:
- *   deploy(environment="production")  → DENY  (same tool name as staging, different risk)
- *   deploy(environment="staging")     → ALLOW
- *   production_admin(...)             → DENY  (belt-and-suspenders; gateway also blocks)
+ * TWO-LAYER CONTRACT — this is LAYER 2:
+ *   Layer 1 (mcpAuthorization in config.yaml) handles tool-name visibility and call-level
+ *   authorization. It cannot see tool arguments (agentgateway v1.5 documented limitation).
  *
- * Failure mode:
- *   FAILURE_MODE=failOpen   → errors in policy evaluation ALLOW the request (dev only)
- *   FAILURE_MODE=failClosed → errors DENY the request (default, production-safe)
+ *   Layer 2 (this server) receives the full MCP request BEFORE it reaches the backend.
+ *   It CAN see tool arguments (they arrive as raw JSON bytes in McpRequest.mcp_request).
+ *   It denies deploy(environment="production") while allowing deploy(environment="staging").
+ *
+ * Enforcement logic:
+ *   deploy + environment="staging"    → Pass (allow, forward to backend)
+ *   deploy + environment="production" → AuthorizationError (deny, never reaches backend)
+ *   deploy + missing/invalid env      → AuthorizationError (fail-safe deny)
+ *   Any other tool                    → Pass (mcpAuthorization handles tool-name control)
+ *
+ * Fail mode:
+ *   Configured via FAILURE_MODE env var. Errors in policy evaluation default to deny (failClosed).
+ *   agentgateway's failureMode in config.yaml separately controls what happens if THIS server
+ *   is unreachable.
+ *
+ * Port: POLICY_GRPC_PORT env var (default 9001)
+ * Health: also exposes HTTP health at POLICY_HTTP_PORT (default 3002) for contract tests
  */
 
-import express, { Request, Response } from 'express';
+import * as grpc from '@grpc/grpc-js';
+import * as protoLoader from '@grpc/proto-loader';
+import * as path from 'path';
+import * as http from 'http';
 
 // ---------------------------------------------------------------------------
-// Types
+// Load proto definition
 // ---------------------------------------------------------------------------
 
-/**
- * The decision returned by the policy processor.
- * allow=true means the request may proceed to the backend.
- * allow=false means agentgateway should reject the request with the given reason.
- */
-export type PolicyDecision = {
+// Proto file is at gateway/ext_mcp.proto
+// __dirname is either:
+//   - gateway/extmcp-policy/         (ts-jest / ts-node running source)
+//   - gateway/extmcp-policy/dist/    (compiled, running from dist/)
+// Resolve to the correct path in both cases.
+const isCompiledDist = __dirname.endsWith('dist') || __dirname.endsWith('dist/');
+const PROTO_PATH = isCompiledDist
+  ? path.join(__dirname, '..', '..', 'ext_mcp.proto')   // dist/ → up two
+  : path.join(__dirname, '..', 'ext_mcp.proto');          // source → up one
+
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true,
+  // @grpc/proto-loader resolves google.protobuf.Struct natively — no includeDirs needed
+});
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const proto = grpc.loadPackageDefinition(packageDefinition) as any;
+
+// ---------------------------------------------------------------------------
+// Policy decision types
+// ---------------------------------------------------------------------------
+
+export interface PolicyDecision {
   allow: boolean;
   reason?: string;
-};
-
-/**
- * The request body agentgateway sends to the policy processor.
- */
-type PolicyCheckRequest = {
-  tool: string;
-  arguments: Record<string, unknown>;
-};
+}
 
 // ---------------------------------------------------------------------------
-// Core policy evaluation (pure function — no HTTP, easily unit-testable)
+// Core policy evaluation — pure function, independently testable
 // ---------------------------------------------------------------------------
 
 /**
- * Evaluate whether a tool call should be allowed.
+ * Evaluates whether a tool call should be allowed.
  *
- * This function is the single source of truth for all policy decisions.
- * It is exported so it can be unit-tested independently of the HTTP server.
- *
- * Design principle: fail CLOSED on ambiguity. If a deploy call does not
- * specify an environment, deny it — do not guess the caller's intent.
+ * @param tool    - The MCP tool name
+ * @param args    - The tool arguments as a parsed object
+ * @returns PolicyDecision with allow=true to forward, allow=false to deny
  */
-export function evaluatePolicy(
-  tool: string,
-  args: Record<string, unknown>
-): PolicyDecision {
-  // --- production_admin: always deny, regardless of arguments ---------------
-  // This is belt-and-suspenders: agentgateway's mcpAuthorization should have
-  // already blocked this at the name level. This processor adds argument-level
-  // confirmation that even if the gateway rule is misconfigured, the tool is
-  // never reached.
+export function evaluatePolicy(tool: string, args: Record<string, unknown>): PolicyDecision {
+  if (tool === 'deploy') {
+    const env = args['environment'];
+
+    if (env === 'staging') {
+      return { allow: true };
+    }
+
+    if (env === 'production') {
+      return {
+        allow: false,
+        reason: 'production deployments are not permitted through this MCP surface',
+      };
+    }
+
+    // Missing or unrecognised environment — fail safe
+    return {
+      allow: false,
+      reason: `deploy requires environment to be "staging"; got: ${JSON.stringify(env ?? null)}`,
+    };
+  }
+
   if (tool === 'production_admin') {
     return {
       allow: false,
@@ -73,138 +109,164 @@ export function evaluatePolicy(
     };
   }
 
-  // --- deploy: argument-sensitive decisions ----------------------------------
-  // This is the primary reason this policy processor exists.
-  // mcpAuthorization allows "deploy" by name (for lab-agent), but we must
-  // distinguish between safe (staging) and unsafe (production) invocations.
-  if (tool === 'deploy') {
-    const environment = args['environment'];
-
-    // Missing environment argument: fail closed.
-    // A deploy without a declared target environment is ambiguous and unsafe.
-    if (environment === undefined || environment === null || environment === '') {
-      return {
-        allow: false,
-        reason:
-          'deploy requires an explicit environment argument; missing or empty value denied by policy',
-      };
-    }
-
-    if (environment === 'production') {
-      return {
-        allow: false,
-        reason:
-          'production deployments are not permitted through this MCP surface',
-      };
-    }
-
-    if (environment === 'staging') {
-      return { allow: true };
-    }
-
-    // Unknown environment value: fail closed.
-    // Only explicitly allow-listed environments are permitted.
-    return {
-      allow: false,
-      reason: `deploy to environment "${String(environment)}" is not permitted; only "staging" is allowed`,
-    };
-  }
-
-  // --- All other tools: allow (pass-through) --------------------------------
-  // Tools not explicitly named in policy rules are allowed by default.
-  // The gateway-level mcpAuthorization has already filtered to the identity's
-  // allowlist, so any tool reaching this processor is already name-approved.
+  // All other tools: pass through (mcpAuthorization handles tool-name control)
   return { allow: true };
 }
 
 // ---------------------------------------------------------------------------
-// HTTP server (Express) — agentgateway integration surface
+// gRPC service implementation
 // ---------------------------------------------------------------------------
 
-const PORT = parseInt(process.env['PORT'] ?? '3002', 10);
-const FAILURE_MODE = process.env['FAILURE_MODE'] ?? 'failClosed';
-const failOpen = FAILURE_MODE === 'failOpen';
-
-const app = express();
-app.use(express.json());
-
 /**
- * Health check endpoint.
- * agentgateway (and ops tooling) can poll this to verify the policy
- * processor is reachable before routing traffic through it.
+ * CheckRequest — called BEFORE the MCP call reaches the backend.
+ * Returns Pass to forward, AuthorizationError to deny.
  */
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok' });
-});
-
-/**
- * Policy check endpoint.
- * agentgateway calls this for every tools/call request it receives,
- * BEFORE forwarding to the backend MCP server.
- *
- * Request:  POST /policy/check
- *           Content-Type: application/json
- *           { "tool": "deploy", "arguments": { "environment": "production" } }
- *
- * Response: { "allow": false, "reason": "production deployments are not permitted..." }
- */
-app.post('/policy/check', (req: Request, res: Response) => {
+function checkRequest(
+  call: grpc.ServerUnaryCall<unknown, unknown>,
+  callback: grpc.sendUnaryData<unknown>
+): void {
   try {
-    const body = req.body as PolicyCheckRequest;
-    const tool = body?.tool;
-    const args = body?.arguments ?? {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const request = call.request as any;
+    const method: string = request.method ?? '';
+    const rawBytes: Buffer | null = request.mcp_request ?? null;
 
-    // Basic input validation
-    if (typeof tool !== 'string' || !tool) {
-      res.status(400).json({
-        allow: false,
-        reason: 'invalid request: tool must be a non-empty string',
-      });
+    // Only inspect tools/call — pass everything else
+    if (method !== 'tools/call') {
+      console.log(`[POLICY] ${method} → Pass (non-tool-call method)`);
+      callback(null, { pass: {} });
       return;
     }
 
-    const decision = evaluatePolicy(tool, args);
+    // Parse JSON-RPC params from raw bytes
+    let toolName = '';
+    let toolArgs: Record<string, unknown> = {};
 
-    // Structured log for observability — one line per decision
-    const env =
-      tool === 'deploy' && typeof args['environment'] === 'string'
-        ? ` env=${args['environment']}`
-        : '';
-    const verdict = decision.allow ? 'ALLOW' : 'DENY';
-    console.log(`[POLICY] tool=${tool}${env} -> ${verdict}`);
-    if (!decision.allow && decision.reason) {
-      console.log(`[POLICY]   reason: ${decision.reason}`);
+    if (rawBytes) {
+      try {
+        const params = JSON.parse(rawBytes.toString('utf8')) as Record<string, unknown>;
+        toolName = (params['name'] as string) ?? '';
+        toolArgs = (params['arguments'] as Record<string, unknown>) ?? {};
+      } catch {
+        // Malformed params — fail closed
+        console.log(`[POLICY] tools/call malformed params → DENY`);
+        callback(null, {
+          error: {
+            status_code: 7, // PERMISSION_DENIED
+            body: 'malformed MCP request params; request denied',
+          },
+        });
+        return;
+      }
     }
 
-    res.json(decision);
-  } catch (err) {
-    // Failure mode: failOpen allows on error; failClosed denies on error.
-    // The safe default (production) is failClosed — never allow on ambiguity.
-    console.error('[POLICY] Error during policy evaluation:', err);
+    const decision = evaluatePolicy(toolName, toolArgs);
 
-    if (failOpen) {
-      console.warn('[POLICY] failOpen mode: allowing request despite error');
-      res.json({ allow: true, reason: 'policy evaluation error; failOpen mode active' });
+    if (decision.allow) {
+      console.log(`[POLICY] tools/call tool=${toolName} → Pass`);
+      callback(null, { pass: {} });
     } else {
-      console.warn('[POLICY] failClosed mode: denying request due to error');
-      res.status(500).json({
-        allow: false,
-        reason: 'policy evaluation error; request denied (failClosed)',
+      console.log(`[POLICY] tools/call tool=${toolName} → DENY: ${decision.reason}`);
+      callback(null, {
+        error: {
+          status_code: 7, // PERMISSION_DENIED
+          body: decision.reason ?? 'denied by policy',
+        },
+      });
+    }
+  } catch (err) {
+    const failureMode = process.env['FAILURE_MODE'] ?? 'failClosed';
+    console.error('[POLICY] Unexpected error in CheckRequest:', err);
+
+    if (failureMode === 'failOpen') {
+      console.log('[POLICY] failOpen: passing request despite error');
+      callback(null, { pass: {} });
+    } else {
+      console.log('[POLICY] failClosed: denying request due to policy evaluation error');
+      callback(null, {
+        error: {
+          status_code: 7,
+          body: 'policy evaluation error; request denied (failClosed)',
+        },
       });
     }
   }
-});
-
-// ---------------------------------------------------------------------------
-// Start server (only when run directly, not when imported for tests)
-// ---------------------------------------------------------------------------
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`[POLICY] ExtMCP policy processor listening on port ${PORT}`);
-    console.log(`[POLICY] failure mode: ${FAILURE_MODE}`);
-    console.log(`[POLICY] POST /policy/check  — policy evaluation endpoint`);
-    console.log(`[POLICY] GET  /health        — health check endpoint`);
-  });
 }
 
-export { app };
+/**
+ * CheckResponse — called AFTER the MCP backend returns a result.
+ * We don't mutate responses in this lab — pass all through.
+ */
+function checkResponse(
+  call: grpc.ServerUnaryCall<unknown, unknown>,
+  callback: grpc.sendUnaryData<unknown>
+): void {
+  callback(null, { pass: {} });
+}
+
+// ---------------------------------------------------------------------------
+// gRPC server
+// ---------------------------------------------------------------------------
+
+const GRPC_PORT = parseInt(process.env['POLICY_GRPC_PORT'] ?? '9001', 10);
+const HTTP_PORT = parseInt(process.env['POLICY_HTTP_PORT'] ?? '3002', 10);
+
+function startGrpcServer(): grpc.Server {
+  const server = new grpc.Server();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ExtMcp = (proto as any).agentgateway.dev.ext_mcp.ExtMcp;
+  server.addService(ExtMcp.service, {
+    CheckRequest: checkRequest,
+    CheckResponse: checkResponse,
+  });
+
+  server.bindAsync(
+    `0.0.0.0:${GRPC_PORT}`,
+    grpc.ServerCredentials.createInsecure(), // h2c as required by agentgateway
+    (err, port) => {
+      if (err) {
+        console.error('[POLICY] Failed to bind gRPC server:', err);
+        process.exit(1);
+      }
+      console.log(`[POLICY] ExtMCP gRPC server listening on port ${port} (h2c)`);
+      console.log(`[POLICY] failure mode: ${process.env['FAILURE_MODE'] ?? 'failClosed'}`);
+      console.log(`[POLICY] Implements: CheckRequest (arg-sensitive), CheckResponse (pass-through)`);
+    }
+  );
+
+  return server;
+}
+
+// ---------------------------------------------------------------------------
+// HTTP health server — for contract tests and Docker health checks
+// ---------------------------------------------------------------------------
+
+function startHealthServer(): http.Server {
+  const server = http.createServer((req, res) => {
+    if (req.method === 'GET' && req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', mode: 'grpc-extmcp' }));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  server.listen(HTTP_PORT, () => {
+    console.log(`[POLICY] HTTP health server on port ${HTTP_PORT} — GET /health`);
+  });
+
+  return server;
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+if (require.main === module) {
+  startGrpcServer();
+  startHealthServer();
+}
+
+export { startGrpcServer, startHealthServer };
