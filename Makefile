@@ -23,7 +23,7 @@
 
 GREEN  := \033[0;32m
 RED    := \033[0;31m
-YELLOW := \033[0;33m
+ORANGE := \033[38;5;208m
 CYAN   := \033[0;36m
 BOLD   := \033[1m
 DIM    := \033[2m
@@ -49,7 +49,7 @@ up:
 	@printf '\n$(GREEN)$(BOLD)Stack running.$(RESET) Run: $(CYAN)make session$(RESET)\n'
 
 down:
-	@printf '$(YELLOW)Stopping stack...$(RESET)\n'
+	@printf '$(ORANGE)Stopping stack...$(RESET)\n'
 	docker compose down
 	@printf '$(GREEN)Done.$(RESET)\n'
 
@@ -107,7 +107,7 @@ step1:
 	  -H "mcp-session-id: $$SID" \
 	  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
 	  | python3 scripts/demo/parse_tools_list.py
-	@printf '\n$(YELLOW)production_admin: HIDDEN from agent discovery$(RESET)\n'
+	@printf '\n$(ORANGE)production_admin: HIDDEN from agent discovery$(RESET)\n'
 	@printf '$(DIM)Watch Terminal A for the tools/list log entry$(RESET)\n\n'
 
 step2:
@@ -191,7 +191,7 @@ step6:
 	@printf '$(BOLD)STEP 6 — FAIL CLOSED$(RESET)\n'
 	@printf '$(DIM)Policy processor stopped. Even staging is blocked.$(RESET)\n'
 	@$(DIVIDER)
-	@printf '\n$(YELLOW)Stopping policy processor...$(RESET)\n'
+	@printf '\n$(ORANGE)Stopping policy processor...$(RESET)\n'
 	@docker stop guidance-policy > /dev/null
 	@sleep 3
 	@printf '$(RED)Policy: STOPPED$(RESET)\n\n'
@@ -209,7 +209,7 @@ step6:
 	   print(f'  \033[0;31m\033[1mDENY\033[0m   {r[\"error\"][\"message\"]}') if 'error' in r else print('  \033[0;31mDENY\033[0m  (failClosed — policy processor unreachable)')" \
 	  2>/dev/null
 	@printf '\n$(RED)failClosed: policy unavailable = request not forwarded$(RESET)\n'
-	@printf '\n$(YELLOW)Restarting policy processor...$(RESET)\n'
+	@printf '\n$(ORANGE)Restarting policy processor...$(RESET)\n'
 	@docker start guidance-policy > /dev/null
 	@sleep 3
 	@printf '$(GREEN)Policy: RUNNING$(RESET)  '
@@ -243,7 +243,7 @@ test:
 # ---------------------------------------------------------------------------
 
 clean:
-	@printf '$(YELLOW)Cleaning up...$(RESET)\n'
+	@printf '$(ORANGE)Cleaning up...$(RESET)\n'
 	rm -f /tmp/mcp_sid.sh /tmp/mcp_raw.txt
 	docker compose down
 	@printf '$(GREEN)Done.$(RESET)\n'
