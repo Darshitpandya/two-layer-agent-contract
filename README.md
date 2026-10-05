@@ -39,44 +39,139 @@ No model failure is required. The architecture already contains it.
 
 ## Quickstart
 
+**Prerequisites:** Docker Desktop, `make` (already on macOS/Linux — verify with `make --version`)
+
 ```bash
-# Prerequisites: Node.js 22+, Docker
 git clone https://github.com/Darshitpandya/guidance-is-not-policy.git
 cd guidance-is-not-policy
-./scripts/setup.sh
-./scripts/run-lab.sh
+make up
 ```
 
-You will see five contract tests pass:
+---
+
+## Running the demo
+
+This repo uses `make` for all workflows. `make` is a standard build tool installed on every macOS and Linux machine. Instead of typing long commands, you type `make <target>` and it runs the right thing.
+
+Open **two terminal windows**, both in the repo directory.
+
+**Terminal A — start the stack and watch live logs:**
+
+```bash
+make up     # start all three Docker containers
+make logs   # follow live logs (leave this running)
+```
+
+**Terminal B — run each demo step:**
+
+```bash
+make session   # initialize MCP session (run once after make up)
+```
+
+Then run each step in order. Each is one command. Each produces output you can screenshot.
+
+```bash
+make step1   # HIDDEN:        gateway shows 2 tools, backend has 3
+make step2   # ALLOWED:       deploy(staging) succeeds end to end
+make step3   # ARG-SENSITIVE: deploy(production) denied — same tool, different outcome
+make step4   # DENIED:        production_admin blocked even when called directly
+make step5   # BACKEND LOG:   proof of what actually reached the server
+make step6   # FAIL CLOSED:   policy processor stopped — nothing forwards
+```
+
+Run all steps at once:
+
+```bash
+make demo
+```
+
+Run contract tests against the live stack:
+
+```bash
+make test
+```
+
+Stop everything:
+
+```bash
+make down
+```
+
+---
+
+### What each step proves
+
+| Command | Slide | Claim |
+|---|---|---|
+| `make step1` | 20 | Backend surface (3 tools) ≠ gateway surface (2 tools). Discovery is filtered. |
+| `make step2` | 19 | Normal path works. Guidance and policy agree. Backend receipt confirmed. |
+| `make step3` | 22 | Same tool name (`deploy`). Different argument. Different outcome. Policy log is the evidence. |
+| `make step4` | 21 | Hidden ≠ denied. Both enforced independently. Backend never sees the call. |
+| `make step5` | 21 | Call log proves non-receipt. Evidence is runtime, not model compliance. |
+| `make step6` | 23 | `failClosed` configured and testable. Policy down = nothing forwarded. |
+
+Watch **Terminal A** during each step. The policy processor logs every decision in real time:
 
 ```
-PASS  allowed    — staging deploy visible and reachable
-PASS  hidden     — production_admin absent from effective discovery surface
-PASS  denied     — direct production_admin invocation rejected
-PASS  arg-sens   — deploy(staging) allowed, deploy(production) denied
-PASS  fail-closed — policy processor unavailable → request not forwarded
+guidance-policy | [POLICY] tools/call tool=deploy → Pass
+guidance-policy | [POLICY] tools/call tool=deploy → DENY: production deployments are not permitted
+guidance-gateway | error="mcp: mcpGuardrails rejected: upstream call timeout"
+```
+
+These log lines are the talk's core evidence — decisions happening at the enforcement plane, not inside the agent.
+
+---
+
+### All available make targets
+
+```
+make up        start Docker stack (builds images if needed)
+make down      stop Docker stack
+make logs      follow live logs from all containers
+make session   initialize MCP session (required before steps)
+make step1     HIDDEN — discovery filtering
+make step2     ALLOWED — staging deploy
+make step3     ARG-SENSITIVE DENY — production deploy
+make step4     DENIED — production_admin direct call
+make step5     BACKEND LOG — non-receipt proof
+make step6     FAIL CLOSED — policy processor unavailable
+make demo      run all steps in sequence
+make test      run contract tests against live stack
+make clean     stop stack and remove session files
 ```
 
 ---
 
 ## What you will see
 
-### ALLOWED — staging deploy succeeds
-
-The `deploy` tool is visible through the gateway for the `lab-agent` identity.  
-`deploy(environment="staging", version="1.2.0")` reaches the backend and succeeds.
-
-### HIDDEN — production_admin absent from discovery
+### HIDDEN — production_admin absent from discovery (`make step1`)
 
 The backend exposes three tools: `status`, `deploy`, `production_admin`.  
-Through the gateway, `lab-agent` sees two: `status`, `deploy`.  
+Through the gateway, the agent sees two: `status`, `deploy`.  
 `production_admin` never enters the model-visible surface.
 
-### DENIED — direct invocation rejected anyway
+### ALLOWED — staging deploy succeeds (`make step2`)
 
-A client attempts `tools/call("production_admin")` directly — bypassing normal discovery.  
-The gateway rejects it. The backend never receives it.  
-**Hidden ≠ denied. Both properties are required. Both are tested.**
+`deploy(environment="staging", version="1.2.0")` passes through the gateway,  
+is approved by the ExtMCP policy processor, and reaches the backend.
+
+### ARG-SENSITIVE — same tool, production denied (`make step3`)
+
+`deploy(environment="production")` uses the same tool name as the allowed call.  
+The ExtMCP policy processor denies it before backend execution.  
+**Tool identity is not always the smallest authorization unit.**
+
+### DENIED — direct invocation rejected (`make step4`)
+
+A client attempts `tools/call("production_admin")` directly — bypassing discovery.  
+The gateway rejects it at the mcpAuthorization layer. The backend never receives it.  
+**Hidden ≠ denied. Both properties are required. Both are enforced.**
+
+### FAIL CLOSED — policy processor unavailable (`make step6`)
+
+When the ExtMCP policy processor is stopped, all tool calls are blocked.  
+Even a legitimate staging deploy is denied.  
+Policy-engine failure semantics are explicit and testable.
 
 ### ARG-SENSITIVE — same tool, different authority
 
