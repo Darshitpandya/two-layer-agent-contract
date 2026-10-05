@@ -37,6 +37,17 @@ No model failure is required. The architecture already contains it.
 
 ---
 
+## Taking the pattern to your project
+
+This repo has a lab (for understanding) and a pattern (for applying).
+
+**If you want to apply this to your own project or org — start here: [`ADOPTING.md`](ADOPTING.md)**
+
+It tells you exactly which 4–5 files to copy, what to change, and what to ignore.  
+The lab, Docker Compose, and Makefile are for running the demo — not for your production setup.
+
+---
+
 ## Quickstart
 
 **Prerequisites:** Docker Desktop, `make` (already on macOS/Linux — verify with `make --version`)
@@ -426,6 +437,7 @@ No cloud account required. Runs entirely locally.
 
 ## Docs
 
+- [`ADOPTING.md`](ADOPTING.md) — **start here if you want to use this in your project or org**
 - [`docs/talk-abstract.md`](docs/talk-abstract.md) — full talk abstract, evidence, reading guide
 - [`docs/architecture.md`](docs/architecture.md) — two-layer contract diagrams
 - [`docs/contract-explained.md`](docs/contract-explained.md) — pattern deep-dive
