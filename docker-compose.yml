@@ -1,0 +1,82 @@
+---
+# guidance-is-not-policy — full Docker Compose stack
+#
+# Starts all three services in containers:
+#   mcp-server     port 3001   Lab MCP server (streamable HTTP)
+#   policy         port 9001   ExtMCP gRPC policy processor (h2c)
+#                  port 3002   Policy HTTP health endpoint
+#   gateway        port 3000   agentgateway v1.5.0
+#
+# Usage:
+#   docker compose up --build        # start everything
+#   docker compose down              # stop everything
+#   docker compose logs -f gateway   # follow gateway logs
+#
+# Run contract tests (while stack is running):
+#   cd contract-tests && npm test
+#
+# Architecture:
+#   agent → gateway:3000 → [mcpAuthorization CEL]
+#                        → [mcpGuardrails] → policy:9001 (gRPC ExtMCP)
+#                        → mcp-server:3001 (if allowed)
+
+services:
+
+  # -------------------------------------------------------------------------
+  # Lab MCP server — streamable HTTP, exposes status/deploy/production_admin
+  # -------------------------------------------------------------------------
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    container_name: guidance-mcp-server
+    ports:
+      - "3001:3001"
+    environment:
+      MCP_HTTP_PORT: "3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # ExtMCP gRPC policy processor — argument-sensitive enforcement (Layer 2)
+  # -------------------------------------------------------------------------
+  policy:
+    build:
+      context: ./gateway/extmcp-policy
+      dockerfile: Dockerfile
+    container_name: guidance-policy
+    ports:
+      - "9001:9001"   # gRPC (h2c) — agentgateway connects here
+      - "3002:3002"   # HTTP health — contract tests connect here
+    environment:
+      POLICY_GRPC_PORT: "9001"
+      POLICY_HTTP_PORT: "3002"
+      FAILURE_MODE: "failClosed"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3002/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # agentgateway v1.5.0 — enforcement plane (Layer 1 + Layer 2 orchestration)
+  # -------------------------------------------------------------------------
+  gateway:
+    image: ghcr.io/agentgateway/agentgateway:v1.5.0
+    container_name: guidance-gateway
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./gateway/config-compose.yaml:/config.yaml:ro
+    command: ["-f", "/config.yaml"]
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+      policy:
+        condition: service_healthy
+    restart: unless-stopped
