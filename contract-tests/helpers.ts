@@ -17,7 +17,10 @@
 
 // Base URLs — overridable via environment variables for CI
 export const GATEWAY_URL = process.env['GATEWAY_URL'] ?? 'http://localhost:3000';
-export const MCP_SERVER_URL = process.env['MCP_SERVER_URL'] ?? 'http://localhost:3001';
+// MCP_SERVER_URL points to the test support port (3009), not the MCP protocol port (3001).
+// Port 3001 is on the internal Docker network only — not reachable from the host.
+// Port 3009 exposes only /health, GET /test/log, DELETE /test/log — no tool invocation.
+export const MCP_SERVER_URL = process.env['MCP_SERVER_URL'] ?? 'http://localhost:3009';
 export const POLICY_URL = process.env['POLICY_URL'] ?? 'http://localhost:3002';
 
 const MCP_VERSION = '2025-03-26';

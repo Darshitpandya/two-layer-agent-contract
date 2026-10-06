@@ -12,10 +12,10 @@
 
 import {
   GATEWAY_URL,
-  MCP_SERVER_URL,
   checkServicesAvailable,
   mcpToolsList,
   mcpToolsCall,
+  getMcpCallLog,
   clearMcpCallLog,
 } from './helpers';
 
@@ -84,18 +84,16 @@ describe('ALLOWED: staging deploy', () => {
     // The response itself should echo back the environment
     expect(response.error).toBeUndefined();
 
-    // Verify via the status tool on the direct MCP server that the deploy was recorded
-    const statusResponse = await mcpToolsCall(MCP_SERVER_URL, 'status', {});
-    expect(statusResponse.error).toBeUndefined();
-
-    const status = statusResponse.result as Record<string, unknown> | undefined;
-    // The status result should reflect a staging deployment
-    expect(status).toBeDefined();
+    // Verify via the backend call log that the deploy was actually received
+    const log = await getMcpCallLog();
+    const stagingCall = log.find(
+      (e) => e.tool === 'deploy' && e.args['environment'] === 'staging'
+    );
+    expect(stagingCall).toBeDefined();
 
     // The deploy response result should contain the environment
     const result = response.result as Record<string, unknown> | null | undefined;
     if (result && typeof result === 'object') {
-      // Accept either a direct `environment` field or nested content
       const resultStr = JSON.stringify(result);
       expect(resultStr).toContain('staging');
     }

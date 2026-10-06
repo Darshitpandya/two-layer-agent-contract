@@ -276,7 +276,48 @@ if (require.main === module) {
     console.error(`[MCP] Tools: status, deploy, production_admin`);
     console.error(`[MCP] POST   /mcp        — MCP streamable HTTP endpoint`);
     console.error(`[MCP] GET    /health     — health check`);
-    console.error(`[MCP] GET    /test/log   — call log (contract tests only)`);
+    console.error(`[MCP] GET    /test/log   — call log (contract tests only, internal)`);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test support server — separate port, host-accessible in default topology
+  //
+  // The MCP protocol port (3001) is on the internal Docker network only and
+  // cannot be reached from the host in the default topology.
+  //
+  // This second server on TEST_SUPPORT_PORT (default 3009) exposes only the
+  // test support endpoints needed by contract tests running on the host:
+  //   GET  /health     — liveness check
+  //   GET  /test/log   — call log (read)
+  //   DELETE /test/log — call log (clear)
+  //
+  // Port 3009 is safe to expose because it has no MCP protocol access and
+  // cannot be used to invoke tools or bypass the enforcement plane.
+  // -------------------------------------------------------------------------
+  const TEST_PORT = parseInt(process.env['TEST_SUPPORT_PORT'] ?? '3009', 10);
+
+  const testApp = express();
+  testApp.use(express.json());
+
+  testApp.get('/health', (_req: Request, res: Response) => {
+    res.json({ status: 'ok', tools: TOOL_DEFINITIONS.map((t) => t.name) });
+  });
+
+  testApp.get('/test/log', (_req: Request, res: Response) => {
+    res.json(callLog);
+  });
+
+  testApp.delete('/test/log', (_req: Request, res: Response) => {
+    callLog.length = 0;
+    deploymentLog.length = 0;
+    res.json({ cleared: true });
+  });
+
+  testApp.listen(TEST_PORT, () => {
+    console.error(`[MCP] Test support server listening on port ${TEST_PORT}`);
+    console.error(`[MCP] GET    /health     — health check`);
+    console.error(`[MCP] GET    /test/log   — call log (read)`);
+    console.error(`[MCP] DELETE /test/log   — call log (clear)`);
   });
 }
 

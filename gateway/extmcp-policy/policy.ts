@@ -152,8 +152,8 @@ function checkRequest(
         console.log(`[POLICY] tools/call malformed params → DENY`);
         callback(null, {
           error: {
-            status_code: 7, // PERMISSION_DENIED
-            body: 'malformed MCP request params; request denied',
+            code: 1, // PERMISSION_DENIED
+            reason: 'malformed MCP request params; request denied',
           },
         });
         return;
@@ -169,8 +169,8 @@ function checkRequest(
       console.log(`[POLICY] tools/call tool=${toolName} → DENY: ${decision.reason}`);
       callback(null, {
         error: {
-          status_code: 7, // PERMISSION_DENIED
-          body: decision.reason ?? 'denied by policy',
+          code: 1, // PERMISSION_DENIED
+          reason: decision.reason ?? 'denied by policy',
         },
       });
     }
@@ -185,8 +185,8 @@ function checkRequest(
       console.log('[POLICY] failClosed: denying request due to policy evaluation error');
       callback(null, {
         error: {
-          status_code: 7,
-          body: 'policy evaluation error; request denied (failClosed)',
+          code: 1, // PERMISSION_DENIED
+          reason: 'policy evaluation error; request denied (failClosed)',
         },
       });
     }
