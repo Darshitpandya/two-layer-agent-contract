@@ -256,3 +256,19 @@ Every independently executed scenario confirms the original AUDIT_REPORT conclus
 2. **fail-closed contract test is tautological** — tests 2 and 3 always pass regardless of gateway behaviour. The gateway is correctly fail-closed; the test does not prove it.
 
 **Overall challenge verdict: READY WITH MINOR FIXES — unchanged from AUDIT_REPORT.**
+
+---
+
+## Post-Remediation Update
+
+All three findings confirmed by both audit passes have been resolved.
+
+| Finding | Challenge verdict | Resolution |
+|---|---|---|
+| Port 3001 latent bypass | PARTIAL | RESOLVED — port 3001 removed from default docker-compose; test-support port 3009 added; evidence overlay uses loopback binding |
+| fail-closed test tautological | PARTIAL | RESOLVED — test replaced with real docker stop/start integration; beforeAll throws on missing prereqs; 3/3 STEP A/B/C pass |
+| DENY message empty | (not challenged — was FAIL in AUDIT_REPORT) | RESOLVED — policy.ts fixed to use correct proto field names; denial reason now surfaces in client response |
+
+**No original PASS was overturned. All remediations confirmed by clean-start verification.**
+
+Post-remediation challenge verdict: **READY**

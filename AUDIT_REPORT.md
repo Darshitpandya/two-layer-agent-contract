@@ -447,3 +447,17 @@ Two fixes before conference day (total ~45 minutes):
 **Fix 2:** Update `make step3` and `make step4` to display the policy processor log line alongside the curl response. This makes DENY slide evidence readable without requiring conference attendees to know to look in Terminal A.
 
 All five observable contract cases execute correctly. The two-layer separation is genuinely implemented. Tests pass. No overclaims. The repo delivers what the talk promises.
+
+---
+
+## 17. Remediation Status
+
+*Added after remediation phase. See REMEDIATION_REPORT.md for full detail.*
+
+| Finding | Original severity | Fix | Runtime proof | Automated test | Residual risk | Final status |
+|---|---|---|---|---|---|---|
+| Port 3001 in default docker-compose | HIGH (latent) | Removed ports from mcp-server; added test-support port 3009; added docker-compose.evidence.yml for loopback-bound evidence mode | `curl http://localhost:3001` → refused; `curl http://127.0.0.1:3001` → accessible in evidence mode | `make test-topology` 6/6 | None | **RESOLVED** |
+| DENY message empty | MEDIUM | Fixed policy.ts: `{status_code,body}` → `{code:1,reason:...}` matching proto definition | `{"message":"production deployments are not permitted..."}` | 14/14 unit tests | None | **RESOLVED** |
+| fail-closed test tautological | LOW/MEDIUM | Rewrote with real `docker stop/start` integration test; `beforeAll` throws on missing prereqs | 3/3 pass including STEP B (actual container stop) | `make test-fail-closed` | Requires Docker + running stack | **RESOLVED** |
+
+**Post-remediation verdict: READY**

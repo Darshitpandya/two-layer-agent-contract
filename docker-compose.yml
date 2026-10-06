@@ -1,16 +1,23 @@
----
 # guidance-is-not-policy — full Docker Compose stack
 #
-# Starts all three services in containers:
-#   mcp-server     port 3001   Lab MCP server (streamable HTTP)
-#   policy         port 9001   ExtMCP gRPC policy processor (h2c)
-#                  port 3002   Policy HTTP health endpoint
-#   gateway        port 3000   agentgateway v1.5.0
+# DEFAULT TOPOLOGY (no extra flags):
+#   mcp-server     internal only  Lab MCP server (streamable HTTP)
+#   policy         port 9001      ExtMCP gRPC policy processor (h2c)
+#                  port 3002      Policy HTTP health endpoint
+#   gateway        port 3000      agentgateway v1.5.0
+#
+# IMPORTANT: mcp-server does NOT publish port 3001 in the default topology.
+# All agent traffic MUST pass through gateway:3000. This prevents bypass of
+# the agentgateway enforcement plane.
 #
 # Usage:
-#   docker compose up --build        # start everything
-#   docker compose down              # stop everything
-#   docker compose logs -f gateway   # follow gateway logs
+#   docker compose up --build              # start everything (default topology)
+#   docker compose down                    # stop everything
+#   docker compose logs -f gateway         # follow gateway logs
+#
+# Evidence/debug topology (loopback-bound port 3001):
+#   docker compose -f docker-compose.yml -f docker-compose.evidence.yml up --build
+#   See docker-compose.evidence.yml for details.
 #
 # Run contract tests (while stack is running):
 #   cd contract-tests && npm test
@@ -18,24 +25,34 @@
 # Architecture:
 #   agent → gateway:3000 → [mcpAuthorization CEL]
 #                        → [mcpGuardrails] → policy:9001 (gRPC ExtMCP)
-#                        → mcp-server:3001 (if allowed)
+#                        → mcp-server:3001 (internal, if allowed)
 
 services:
 
   # -------------------------------------------------------------------------
   # Lab MCP server — streamable HTTP, exposes status/deploy/production_admin
+  #
+  # NO ports: section here — mcp-server is internal only in the default
+  # topology. This enforces that all agent traffic routes through the
+  # gateway enforcement plane and cannot bypass policy controls.
   # -------------------------------------------------------------------------
   mcp-server:
     build:
       context: ./mcp-server
       dockerfile: Dockerfile
     container_name: guidance-mcp-server
+    # Port 3001 (MCP protocol) NOT published — internal only. Enforces gateway chokepoint.
+    # Port 3009 (test support only) published — exposes /health and /test/log for
+    # contract tests running on the host. No MCP protocol access on this port.
     ports:
-      - "3001:3001"
+      - "3009:3009"
     environment:
       MCP_HTTP_PORT: "3001"
+      TEST_SUPPORT_PORT: "3009"
+    networks:
+      - lab-internal
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3009/health"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -56,6 +73,8 @@ services:
       POLICY_GRPC_PORT: "9001"
       POLICY_HTTP_PORT: "3002"
       FAILURE_MODE: "failClosed"
+    networks:
+      - lab-internal
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3002/health"]
       interval: 5s
@@ -74,9 +93,15 @@ services:
     volumes:
       - ./gateway/config-compose.yaml:/config.yaml:ro
     command: ["-f", "/config.yaml"]
+    networks:
+      - lab-internal
     depends_on:
       mcp-server:
         condition: service_healthy
       policy:
         condition: service_healthy
     restart: unless-stopped
+
+networks:
+  lab-internal:
+    driver: bridge

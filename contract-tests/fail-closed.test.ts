@@ -1,167 +1,186 @@
 /**
- * FAIL-CLOSED: policy processor unavailable
+ * FAIL-CLOSED: real integration test
  *
- * Proves that the gateway implements fail-closed behaviour: when the policy
- * processor is unreachable, ALL requests are denied rather than forwarded.
+ * Proves fail-closed by actually stopping the guidance-policy container.
+ * Requires: docker compose stack running (make up)
+ * Requires: Docker CLI available
  *
- * This is a critical safety property.  If the gateway were fail-open, an
- * attacker who disrupts the policy processor would gain unrestricted access
- * to every backend tool.
- *
- * Test strategy:
- *   Tests 1–3 run against the live policy processor via the gateway.
- *   Test 2 (unavailable processor) uses the POLICY_UNAVAILABLE env var or
- *   calls evaluatePolicy directly with a mock to simulate the failure.
- *
- *   For full end-to-end verification of fail-closed during manual testing:
- *   1. Start the stack:  ./scripts/run-lab.sh
- *   2. Stop only the policy processor (Ctrl-C on that process or kill it).
- *   3. Re-run: npm run test:fail-closed
- *   The gateway should deny deploy(staging) because it cannot consult policy.
- *
- * NOTE: The unit-level test (test 2) imports `evaluatePolicy` from the policy
- * processor to exercise the failClosed path directly, without requiring the
- * developer to manually stop a service during the CI run.
- *
- * Requires Node 22+.  Full integration requires ./scripts/run-lab.sh.
+ * Sequence:
+ *   STEP A: policy available → deploy(staging) → ALLOW, backend log contains call
+ *   STEP B: docker stop guidance-policy → deploy(staging) → DENY, backend log empty
+ *   STEP C: docker start guidance-policy → wait for health → deploy(staging) → ALLOW, backend log contains call
  */
-
+import { execSync } from 'node:child_process';
 import {
   GATEWAY_URL,
+  MCP_SERVER_URL,
   POLICY_URL,
-  checkServicesAvailable,
   mcpToolsCall,
   getMcpCallLog,
   clearMcpCallLog,
 } from './helpers';
 
-let servicesAvailable = false;
+const CONTAINER = 'guidance-policy';
+const TIMEOUT = 60_000;
+
+function dockerRun(cmd: string): void {
+  execSync(cmd, { stdio: 'pipe' });
+}
+
+function containerRunning(name: string): boolean {
+  try {
+    const out = execSync(`docker inspect --format={{.State.Running}} ${name}`, { stdio: 'pipe' })
+      .toString()
+      .trim();
+    return out === 'true';
+  } catch {
+    return false;
+  }
+}
+
+async function waitForHealth(url: string, expectUp: boolean, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const r = await fetch(url);
+      if (expectUp && r.ok) return;
+    } catch {
+      if (!expectUp) return;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`waitForHealth timeout: ${url} expectUp=${expectUp}`);
+}
 
 beforeAll(async () => {
-  servicesAvailable = await checkServicesAvailable();
-  if (!servicesAvailable) {
-    console.warn(
-      '\n⚠️  Services not running — FAIL-CLOSED integration tests will be skipped.\n' +
-        '   Start the stack with: ./scripts/run-lab.sh\n'
+  // Docker must be available
+  try {
+    execSync('docker info', { stdio: 'pipe' });
+  } catch {
+    throw new Error(
+      'Docker is required for fail-closed integration tests. Install Docker Desktop.'
     );
   }
-});
 
-beforeEach(async () => {
-  if (servicesAvailable) {
-    await clearMcpCallLog();
+  // Stack must be running — check gateway responsiveness
+  const gwOk = await fetch(`${GATEWAY_URL}/mcp`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'MCP-Protocol-Version': '2025-03-26',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 0,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'health', version: '1.0.0' },
+      },
+    }),
+  })
+    .then(() => true)
+    .catch(() => false);
+
+  if (!gwOk) throw new Error('Stack not running. Start with: make up');
+
+  // Policy container must be running
+  if (!containerRunning(CONTAINER)) {
+    throw new Error(`Container '${CONTAINER}' not running. Start with: make up`);
+  }
+}, TIMEOUT);
+
+afterAll(async () => {
+  // Always ensure policy container is running after tests finish
+  if (!containerRunning(CONTAINER)) {
+    try {
+      dockerRun(`docker start ${CONTAINER}`);
+      await waitForHealth(`${POLICY_URL}/health`, true, 15_000).catch(() => {});
+    } catch {
+      // Best-effort cleanup — don't mask test failures
+    }
   }
 });
 
 describe('FAIL-CLOSED: policy processor unavailable', () => {
-  test('deploy(staging) succeeds when policy processor is running', async () => {
-    if (!servicesAvailable) {
-      console.warn('Skipping: services not available');
-      return;
-    }
+  // Increase timeout for entire describe block — docker stop/start cycle takes ~15s
+  jest.setTimeout(TIMEOUT);
 
-    // Sanity check: confirm the policy processor is reachable
-    const policyReachable = await fetch(`${POLICY_URL}/health`)
-      .then((r) => r.ok)
-      .catch(() => false);
+  test('STEP A: deploy(staging) succeeds when policy is available', async () => {
+    await clearMcpCallLog();
+    const marker = `FAILCLOSED-BEFORE-${Date.now()}`;
 
-    expect(policyReachable).toBe(true);
-
-    // Normal deploy should succeed
-    const response = await mcpToolsCall(
-      GATEWAY_URL,
-      'deploy',
-      { environment: 'staging', version: '1.0.0' },
-      'lab-agent'
-    );
+    const response = await mcpToolsCall(GATEWAY_URL, 'deploy', {
+      environment: 'staging',
+      version: marker,
+    });
 
     expect(response.error).toBeUndefined();
     expect(response.result).toBeDefined();
-  });
-
-  test('deploy(staging) is denied when policy processor is stopped', async () => {
-    /**
-     * MANUAL TESTING NOTE
-     * -------------------
-     * To exercise this test against a running stack, stop the policy processor
-     * and set POLICY_UNAVAILABLE=true before running:
-     *
-     *   POLICY_UNAVAILABLE=true npm run test:fail-closed
-     *
-     * The gateway must deny all calls when it cannot reach the policy processor.
-     * This verifies the fail-closed contract at the integration level.
-     *
-     * For CI, this test exercises the fail-closed logic via a direct unit call
-     * to the gateway's internal evaluatePolicy helper (see below).
-     */
-    const policyUnavailable = process.env['POLICY_UNAVAILABLE'] === 'true';
-
-    if (!policyUnavailable) {
-      // CI / unit path: simulate policy processor failure by calling the gateway
-      // with a poisoned POLICY_URL.  We test the fail-closed guarantee by
-      // checking that the gateway returns a policy-evaluation error when its
-      // configured policy endpoint is unreachable.
-      //
-      // The gateway implementation must catch fetch errors from the policy
-      // processor and respond with a denial (not forward the request).
-
-      // We do this by setting a deliberately wrong policy URL via a gateway
-      // config endpoint (if available), or by checking the FAIL_CLOSED_GATE
-      // env var on the gateway process.  Since we can't mutate the running
-      // gateway mid-test, we document the expected behaviour here and verify
-      // via the policy processor's own failClosed unit path.
-
-      // Unit assertion: a policy error should cause the gateway to deny
-      // This assertion encodes the contract expectation, verified by the
-      // gateway implementation (see gateway/src/index.ts).
-      const failClosedBehaviour = 'deny'; // the only safe default
-      expect(failClosedBehaviour).toBe('deny');
-      return;
-    }
-
-    // Integration path (POLICY_UNAVAILABLE=true): the policy processor is down.
-    // The gateway must deny the deploy request.
-    const response = await mcpToolsCall(
-      GATEWAY_URL,
-      'deploy',
-      { environment: 'staging', version: '1.0.0' },
-      'lab-agent'
-    );
-
-    expect(response.error).toBeDefined();
-    expect(response.result).toBeUndefined();
-  });
-
-  test('backend did not receive the call when policy processor was unavailable', async () => {
-    const policyUnavailable = process.env['POLICY_UNAVAILABLE'] === 'true';
-
-    if (!policyUnavailable) {
-      // Unit path: document the invariant.
-      // When policy evaluation fails, the gateway must not forward the call.
-      // This is tested at the unit level in gateway/__tests__/failClosed.test.ts.
-      // Here we encode the contract expectation.
-      const backendCallsOnPolicyFailure = 0;
-      expect(backendCallsOnPolicyFailure).toBe(0);
-      return;
-    }
-
-    if (!servicesAvailable) {
-      console.warn('Skipping: services not available');
-      return;
-    }
-
-    // Clear the log, attempt the blocked call, then verify no backend execution
-    await clearMcpCallLog();
-
-    await mcpToolsCall(
-      GATEWAY_URL,
-      'deploy',
-      { environment: 'staging', version: '1.0.0' },
-      'lab-agent'
-    );
 
     const log = await getMcpCallLog();
-    const deployCalls = log.filter((entry) => entry.tool === 'deploy');
-    expect(deployCalls).toHaveLength(0);
+    const ourCall = log.find((e) => e.tool === 'deploy' && e.args['version'] === marker);
+    expect(ourCall).toBeDefined(); // backend received the call
+  });
+
+  test('STEP B: deploy(staging) is denied when policy container is stopped', async () => {
+    await clearMcpCallLog();
+
+    // Actually stop the container
+    dockerRun(`docker stop ${CONTAINER}`);
+    await waitForHealth(`${POLICY_URL}/health`, false, 10_000);
+
+    try {
+      const marker = `FAILCLOSED-DURING-${Date.now()}`;
+      const response = await mcpToolsCall(GATEWAY_URL, 'deploy', {
+        environment: 'staging',
+        version: marker,
+      });
+
+      // Gateway must deny — fail-closed
+      expect(response.error).toBeDefined();
+      expect(response.result).toBeUndefined();
+
+      // Backend must not have received the call
+      const log = await getMcpCallLog();
+      const ourCall = log.find((e) => e.args?.['version'] === marker);
+      expect(ourCall).toBeUndefined(); // backend did NOT receive the call
+    } finally {
+      // Always restart policy container regardless of test outcome
+      dockerRun(`docker start ${CONTAINER}`);
+      await waitForHealth(`${POLICY_URL}/health`, true, 15_000);
+      // Give the gateway time to detect and re-establish its gRPC connection
+      // to the policy processor (agentgateway uses connection pooling with backoff)
+      await new Promise((r) => setTimeout(r, 5_000));
+    }
+  });
+
+  test('STEP C: deploy(staging) succeeds after policy container is restored', async () => {
+    // Policy was restarted in STEP B's finally block (including gateway reconnect wait)
+    await clearMcpCallLog();
+    const marker = `FAILCLOSED-AFTER-${Date.now()}`;
+
+    // Retry the call until the gateway has fully reconnected to the policy processor.
+    // The gateway may need a few extra seconds after the policy HTTP health endpoint
+    // is up before its internal gRPC connection pool is ready.
+    let response: { result?: unknown; error?: { code: number; message: string } } = {};
+    const deadline = Date.now() + 20_000;
+    while (Date.now() < deadline) {
+      response = await mcpToolsCall(GATEWAY_URL, 'deploy', {
+        environment: 'staging',
+        version: marker,
+      });
+      if (!response.error) break;
+      await new Promise((r) => setTimeout(r, 1_000));
+    }
+
+    expect(response.error).toBeUndefined();
+    expect(response.result).toBeDefined();
+
+    const log = await getMcpCallLog();
+    const ourCall = log.find((e) => e.tool === 'deploy' && e.args['version'] === marker);
+    expect(ourCall).toBeDefined(); // backend received the call after recovery
   });
 });

@@ -1,21 +1,24 @@
 # guidance-is-not-policy — Makefile
 #
 # Usage:
-#   make up          start the full Docker stack
-#   make down        stop the stack
-#   make logs        follow live logs (all containers)
-#   make session     initialize an MCP session (run once after make up)
-#   make step1       HIDDEN: gateway hides production_admin
-#   make step2       ALLOWED: staging deploy succeeds
-#   make step3       DENY: same tool, production blocked
-#   make step4       DENY: production_admin direct call blocked
-#   make step5       backend log — what actually reached the server
-#   make step6       FAIL CLOSED: stop policy, verify nothing forwards
-#   make demo        run all steps in sequence
-#   make test        run contract tests against running stack
-#   make clean       stop stack and remove session files
+#   make up              start the full Docker stack (default: no port 3001)
+#   make up-evidence     start with loopback port 3001 for direct comparison
+#   make down            stop the stack
+#   make logs            follow live logs (all containers)
+#   make session         initialize an MCP session (run once after make up)
+#   make step1           HIDDEN: gateway hides production_admin
+#   make step2           ALLOWED: staging deploy succeeds
+#   make step3           DENY: same tool, production blocked
+#   make step4           DENY: production_admin direct call blocked
+#   make step5           backend log — what actually reached the server
+#   make step6           FAIL CLOSED: stop policy, verify nothing forwards
+#   make demo            run all steps in sequence
+#   make test            run contract tests against running stack
+#   make test-topology   verify default topology does not publish port 3001
+#   make verify          run all verification checks
+#   make clean           stop stack and remove session files
 
-.PHONY: up down logs session step1 step2 step3 step4 step5 step6 demo test clean
+.PHONY: up up-evidence down logs session step1 step2 step3 step4 step5 step6 demo test test-topology test-fail-closed verify clean
 
 # ---------------------------------------------------------------------------
 # Color codes — work on macOS Terminal, iTerm2, VS Code terminal
@@ -42,11 +45,22 @@ LABEL   = printf '$(BOLD)$(CYAN)%-12s$(RESET) %s\n'
 
 up:
 	@printf '$(BOLD)Starting guidance-is-not-policy stack...$(RESET)\n'
+	@printf '$(DIM)Default topology: mcp-server port 3001 is internal-only.$(RESET)\n'
 	docker compose up --build -d
 	@printf '\n$(DIM)Waiting for containers to be healthy...$(RESET)\n'
 	@sleep 8
 	@docker compose ps
 	@printf '\n$(GREEN)$(BOLD)Stack running.$(RESET) Run: $(CYAN)make session$(RESET)\n'
+
+up-evidence:
+	@printf '$(BOLD)$(ORANGE)Starting evidence topology...$(RESET)\n'
+	@printf '$(RED)WARNING: port 3001 bound to loopback — NOT a production topology$(RESET)\n'
+	docker compose -f docker-compose.yml -f docker-compose.evidence.yml up --build -d
+	@printf '\n$(DIM)Waiting for containers to be healthy...$(RESET)\n'
+	@sleep 8
+	@docker compose -f docker-compose.yml -f docker-compose.evidence.yml ps
+	@printf '\n$(ORANGE)$(BOLD)Evidence stack running.$(RESET) Port 3001 accessible on 127.0.0.1.\n'
+	@printf '$(DIM)Stop with: docker compose -f docker-compose.yml -f docker-compose.evidence.yml down$(RESET)\n'
 
 down:
 	@printf '$(ORANGE)Stopping stack...$(RESET)\n'
@@ -137,7 +151,9 @@ step3:
 	@printf '$(BOLD)STEP 3 — ARG-SENSITIVE DENY$(RESET)\n'
 	@printf '$(DIM)Same tool name. Different argument. Different outcome.$(RESET)\n'
 	@$(DIVIDER)
-	@printf '\n$(CYAN)deploy(environment=production, version=1.2.0):$(RESET)\n'
+	@printf '\n$(CYAN)REQUEST$(RESET)\n'
+	@printf '  deploy(environment="production", version="1.2.0")\n'
+	@printf '\n$(CYAN)CLIENT$(RESET)\n'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
 	  -H "Accept: application/json, text/event-stream" \
@@ -148,17 +164,26 @@ step3:
 	  "import sys,json; \
 	   lines=[l[5:].strip() for l in sys.stdin if l.startswith('data:')]; \
 	   r=json.loads(lines[0]) if lines else {}; \
-	   print(f'  \033[0;31m\033[1mDENY\033[0m   {r[\"error\"][\"message\"]}') if 'error' in r else print('  \033[0;31mDENY\033[0m  (blocked before response body)')" \
+	   print(f'  $(RED)$(BOLD)DENIED$(RESET)') if 'error' in r else print('  $(GREEN)$(BOLD)ALLOWED$(RESET)')" \
 	  2>/dev/null
-	@printf '\n$(RED)production deployments are not permitted through this MCP surface$(RESET)\n'
-	@printf '$(DIM)Watch Terminal A for: [POLICY] tools/call tool=deploy → DENY$(RESET)\n\n'
+	@printf '\n$(CYAN)POLICY$(RESET)\n'
+	@docker logs guidance-policy 2>&1 | grep 'POLICY.*deploy.*DENY' | tail -1 | \
+	  sed 's/\[POLICY\] /  /' | sed 's/tools\/call //' \
+	  || printf '  (see: docker logs guidance-policy)\n'
+	@printf '\n$(CYAN)BACKEND$(RESET)\n'
+	@curl -s http://localhost:3001/test/log | python3 -c \
+	  "import sys,json; log=json.load(sys.stdin); prod=[e for e in log if e.get('args',{}).get('environment')=='production']; print('  not invoked ✓' if not prod else '  INVOKED ✗ — '+str(prod))" \
+	  2>/dev/null
+	@printf '\n'
 
 step4:
 	@$(DIVIDER)
 	@printf '$(BOLD)STEP 4 — DENIED$(RESET)\n'
 	@printf '$(DIM)production_admin called directly. Hidden AND denied independently.$(RESET)\n'
 	@$(DIVIDER)
-	@printf '\n$(CYAN)tools/call: production_admin (not in tools/list, called directly):$(RESET)\n'
+	@printf '\n$(CYAN)REQUEST$(RESET)\n'
+	@printf '  production_admin(operation="restart", target="api-service")\n'
+	@printf '\n$(CYAN)CLIENT$(RESET)\n'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
 	  -H "Accept: application/json, text/event-stream" \
@@ -169,9 +194,17 @@ step4:
 	  "import sys,json; \
 	   lines=[l[5:].strip() for l in sys.stdin if l.startswith('data:')]; \
 	   r=json.loads(lines[0]) if lines else {}; \
-	   print(f'  \033[0;31m\033[1mDENY\033[0m   {r[\"error\"][\"message\"]}') if 'error' in r else print('  \033[0;31mDENY\033[0m  (blocked at gateway)')" \
+	   print(f'  $(RED)$(BOLD)DENIED$(RESET)') if 'error' in r else print('  $(GREEN)$(BOLD)ALLOWED$(RESET)')" \
 	  2>/dev/null
-	@printf '\n$(DIM)Hidden ≠ denied. Both enforced independently.$(RESET)\n\n'
+	@printf '\n$(CYAN)POLICY$(RESET)\n'
+	@docker logs guidance-policy 2>&1 | grep 'POLICY.*production_admin.*DENY' | tail -1 | \
+	  sed 's/\[POLICY\] /  /' | sed 's/tools\/call //' \
+	  || printf '  (see: docker logs guidance-policy)\n'
+	@printf '\n$(CYAN)BACKEND$(RESET)\n'
+	@curl -s http://localhost:3001/test/log | python3 -c \
+	  "import sys,json; log=json.load(sys.stdin); padm=[e for e in log if e.get('tool')=='production_admin']; print('  not invoked ✓' if not padm else '  INVOKED ✗ — '+str(padm))" \
+	  2>/dev/null
+	@printf '\n'
 
 step5:
 	@$(DIVIDER)
@@ -234,9 +267,47 @@ test:
 	@printf '$(BOLD)Running contract tests against live stack...$(RESET)\n\n'
 	@cd contract-tests && \
 	  GATEWAY_URL=http://localhost:3000 \
-	  MCP_SERVER_URL=http://localhost:3001 \
+	  MCP_SERVER_URL=http://localhost:3009 \
 	  POLICY_URL=http://localhost:3002 \
 	  npm test
+
+# ---------------------------------------------------------------------------
+# Fail-closed integration test (requires running stack: make up)
+# ---------------------------------------------------------------------------
+
+test-fail-closed:
+	@printf '$(BOLD)Running fail-closed integration test...$(RESET)\n'
+	@printf '$(DIM)Requires: make up (stack must be running)$(RESET)\n\n'
+	@cd contract-tests && \
+	  GATEWAY_URL=http://localhost:3000 \
+	  MCP_SERVER_URL=http://localhost:3009 \
+	  POLICY_URL=http://localhost:3002 \
+	  npx jest fail-closed --runInBand --verbose 2>&1
+
+# ---------------------------------------------------------------------------
+# Topology test — verifies default compose does not publish port 3001
+# ---------------------------------------------------------------------------
+
+test-topology:
+	@printf '$(BOLD)Running topology test...$(RESET)\n'
+	@bash scripts/topology-test.sh
+
+# ---------------------------------------------------------------------------
+# Full verification (unit + typecheck + topology + contract + fail-closed)
+# ---------------------------------------------------------------------------
+
+verify: test-topology
+	@printf '$(BOLD)Running policy unit tests...$(RESET)\n'
+	@cd gateway/extmcp-policy && npm test
+	@printf '\n$(BOLD)Running contract tests (requires running stack)...$(RESET)\n'
+	@cd contract-tests && \
+	  GATEWAY_URL=http://localhost:3000 \
+	  MCP_SERVER_URL=http://localhost:3009 \
+	  POLICY_URL=http://localhost:3002 \
+	  npm test
+	@printf '\n$(BOLD)Running fail-closed integration test...$(RESET)\n'
+	@$(MAKE) test-fail-closed
+	@printf '\n$(GREEN)$(BOLD)All verification checks passed.$(RESET)\n'
 
 # ---------------------------------------------------------------------------
 # Cleanup

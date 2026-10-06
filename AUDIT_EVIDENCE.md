@@ -230,3 +230,55 @@ expect(backendCallsOnPolicyFailure).toBe(0);
 docker compose down
 ```
 Result: All containers stopped and removed  
+
+---
+
+## Post-Remediation Evidence
+
+### Topology test (make test-topology)
+
+```
+PASS: mcp-server port 3001 not published in default topology
+PASS: gateway port 3000 is published in default topology
+PASS: mcp-server test support port 3009 is published
+PASS: policy gRPC port 9001 is published in default topology
+PASS: policy health port 3002 is published in default topology
+PASS: evidence override publishes port 3001 (loopback-bound)
+Topology test PASSED
+```
+
+### Denial message after fix
+
+Before: `{"error":{"code":-32603,"message":""}}`  
+After:  `{"error":{"code":-32001,"message":"production deployments are not permitted through this MCP surface"}}`
+
+### Fail-closed integration test (make test-fail-closed)
+
+```
+PASS ./fail-closed.test.ts (20.4 s)
+  ✓ STEP A: deploy(staging) succeeds when policy is available (25 ms)
+  ✓ STEP B: deploy(staging) is denied when policy container is stopped (18937 ms)
+  ✓ STEP C: deploy(staging) succeeds after policy container is restored (54 ms)
+Tests: 3 passed, 3 total
+```
+
+Gateway log from STEP B:
+```
+error="mcp: mcpGuardrails rejected: mcpGuardrails checkRequest failed: upstream call failed: Connect: No route to host (os error 113)"
+```
+
+### Full contract tests after remediation
+
+```
+PASS ./allowed.test.ts
+PASS ./hidden.test.ts
+PASS ./fail-closed.test.ts
+PASS ./arg-sensitive.test.ts
+PASS ./denied.test.ts
+Test Suites: 5 passed, 5 total
+Tests:       17 passed, 17 total
+```
+
+### 12-scenario clean-start verification
+
+All 14 checks (12 scenarios + 2 sub-checks): PASS
