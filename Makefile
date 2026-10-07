@@ -129,7 +129,7 @@ step2:
 	@printf '$(BOLD)STEP 2 — ALLOWED$(RESET)\n'
 	@printf '$(DIM)deploy(staging) succeeds. Guidance and policy agree.$(RESET)\n'
 	@$(DIVIDER)
-	@curl -s -X DELETE http://localhost:3001/test/log > /dev/null
+	@curl -s -X DELETE http://localhost:3009/test/log > /dev/null
 	@printf '\n$(CYAN)deploy(environment=staging, version=1.2.0):$(RESET)\n'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
@@ -162,16 +162,18 @@ step3:
 	  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"deploy","arguments":{"environment":"production","version":"1.2.0"}}}' \
 	  | python3 -c \
 	  "import sys,json; \
-	   lines=[l[5:].strip() for l in sys.stdin if l.startswith('data:')]; \
+	   data=sys.stdin.read(); \
+	   lines=[l[5:].strip() for l in data.split('\n') if l.startswith('data:')]; \
 	   r=json.loads(lines[0]) if lines else {}; \
-	   print(f'  $(RED)$(BOLD)DENIED$(RESET)') if 'error' in r else print('  $(GREEN)$(BOLD)ALLOWED$(RESET)')" \
+	   r=r if r else (json.loads(data.strip()) if data.strip() else {}); \
+	   print(f'  \033[0;31m\033[1mDENIED\033[0m') if 'error' in r else print(f'  \033[0;32m\033[1mALLOWED\033[0m')" \
 	  2>/dev/null
 	@printf '\n$(CYAN)POLICY$(RESET)\n'
 	@docker logs guidance-policy 2>&1 | grep 'POLICY.*deploy.*DENY' | tail -1 | \
 	  sed 's/\[POLICY\] /  /' | sed 's/tools\/call //' \
 	  || printf '  (see: docker logs guidance-policy)\n'
 	@printf '\n$(CYAN)BACKEND$(RESET)\n'
-	@curl -s http://localhost:3001/test/log | python3 -c \
+	@curl -s http://localhost:3009/test/log | python3 -c \
 	  "import sys,json; log=json.load(sys.stdin); prod=[e for e in log if e.get('args',{}).get('environment')=='production']; print('  not invoked ✓' if not prod else '  INVOKED ✗ — '+str(prod))" \
 	  2>/dev/null
 	@printf '\n'
@@ -192,17 +194,19 @@ step4:
 	  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"production_admin","arguments":{"operation":"restart","target":"api-service"}}}' \
 	  | python3 -c \
 	  "import sys,json; \
-	   lines=[l[5:].strip() for l in sys.stdin if l.startswith('data:')]; \
+	   data=sys.stdin.read(); \
+	   lines=[l[5:].strip() for l in data.split('\n') if l.startswith('data:')]; \
 	   r=json.loads(lines[0]) if lines else {}; \
-	   print(f'  $(RED)$(BOLD)DENIED$(RESET)') if 'error' in r else print('  $(GREEN)$(BOLD)ALLOWED$(RESET)')" \
+	   r=r if r else (json.loads(data.strip()) if data.strip() else {}); \
+	   print(f'  \033[0;31m\033[1mDENIED\033[0m') if 'error' in r else print(f'  \033[0;32m\033[1mALLOWED\033[0m')" \
 	  2>/dev/null
 	@printf '\n$(CYAN)POLICY$(RESET)\n'
 	@docker logs guidance-policy 2>&1 | grep 'POLICY.*production_admin.*DENY' | tail -1 | \
 	  sed 's/\[POLICY\] /  /' | sed 's/tools\/call //' \
 	  || printf '  (see: docker logs guidance-policy)\n'
 	@printf '\n$(CYAN)BACKEND$(RESET)\n'
-	@curl -s http://localhost:3001/test/log | python3 -c \
-	  "import sys,json; log=json.load(sys.stdin); padm=[e for e in log if e.get('tool')=='production_admin']; print('  not invoked ✓' if not padm else '  INVOKED ✗ — '+str(padm))" \
+	@curl -s http://localhost:3009/test/log | python3 -c \
+	  "import sys,json; log=json.load(sys.stdin); padm=[e for e in log if e.get('tool')=='production_admin']; print('  not invoked \u2713' if not padm else '  INVOKED \u2717 \u2014 '+str(padm))" \
 	  2>/dev/null
 	@printf '\n'
 
@@ -212,7 +216,7 @@ step5:
 	@printf '$(DIM)Proof of what actually reached the MCP server.$(RESET)\n'
 	@$(DIVIDER)
 	@printf '\n$(CYAN)Calls that reached the backend:$(RESET)\n'
-	@curl -s http://localhost:3001/test/log | python3 -c \
+	@curl -s http://localhost:3009/test/log | python3 -c \
 	  "import sys,json; \
 	   log=json.load(sys.stdin); \
 	   [print(f'  \033[0;32m✓\033[0m  tool=\033[1m{e[\"tool\"]}\033[0m  environment={e[\"args\"].get(\"environment\",\"n/a\")}') for e in log] or \
