@@ -110,7 +110,7 @@ step1:
 	@$(DIVIDER)
 	@printf '\n'
 	@printf '$(CYAN)Backend (direct, no gateway):$(RESET)\n'
-	@curl -s http://localhost:3001/health | python3 -c \
+	@curl -s http://localhost:3009/health | python3 -c \
 	  "import sys,json; r=json.load(sys.stdin); [print(f'  \033[2m{t}\033[0m') for t in r['tools']]"
 	@printf '\n'
 	@printf '$(CYAN)Gateway (what the agent sees):$(RESET)\n'
