@@ -78,3 +78,60 @@ The talk argues that is not a boundary. It's a preference. If the agent's tool s
 The Two-Layer Contract says: put the instruction in AGENTS.md where it belongs. Then also enforce it at the gateway where it cannot be overridden by anything the agent does or reads.
 
 The screenshots prove that second layer works. That's all they're doing.
+
+---
+
+## Does this contract live at the central org level (agentgateway + MCP) or in pipelines?
+
+Both — but they sit at different layers and serve different purposes.
+
+### The enforcement plane lives at the org's central MCP gateway layer
+
+Not in pipelines. Not in the agent. Not in the tools.
+
+```
+Developer laptop / CI pipeline / any agent
+        │
+        │  (all traffic goes through here)
+        ▼
+agentgateway  ← enforcement plane — central, org-owned
+        │
+        ├──→ deployment tools
+        ├──→ database tools
+        ├──→ internal APIs
+        └──→ cloud provider tools
+```
+
+agentgateway is infrastructure in the same sense that an API gateway or a service mesh is infrastructure. It runs once, centrally, and every agent in the org goes through it to reach tools. Your platform team owns it. Developers don't touch it.
+
+### Where pipelines fit in
+
+Pipelines don't enforce the contract — they consume it.
+
+A CI/CD pipeline that runs a coding agent is just another caller. It goes through the same agentgateway. The gateway doesn't care whether the caller is a developer's laptop, a GitHub Actions job, or a scheduled agent run. The identity (who is calling) and the policy (what they're allowed to do) are evaluated the same way.
+
+What pipelines add is **identity**. A GitHub Actions pipeline runs as a specific service account. agentgateway can see that identity and apply different rules:
+
+```
+ci-agent (GitHub Actions)        → can deploy to staging
+dev-agent (developer laptop)     → can deploy to staging
+release-agent (release pipeline) → can deploy to production
+```
+
+Same gateway. Same policy processor. Different rules per identity.
+
+### The guidance plane is the opposite — it lives close to the work
+
+AGENTS.md lives in the repository — as close to the code as possible. Every team writes their own. It's scoped, contextual, local. It tells the agent how to work in *this* codebase specifically.
+
+The enforcement plane lives centrally because it has to be independent of any one team's repository. If enforcement lived in AGENTS.md it would be controlled by whoever can commit to that repo — which defeats the purpose entirely.
+
+### Summary
+
+| Layer | Lives where | Owned by | Changed by |
+|---|---|---|---|
+| Guidance (AGENTS.md) | In the repository | Team / developer | Any team member with repo access |
+| Enforcement (agentgateway) | Central org infrastructure | Platform team | Platform team only |
+| Policy rules (ExtMCP) | Central org infrastructure | Platform + security team | Platform team only |
+
+The contract's power comes specifically from this separation. Guidance is decentralised and flexible. Enforcement is centralised and fixed. Neither can override the other.
