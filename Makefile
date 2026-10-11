@@ -104,25 +104,24 @@ session:
 # ---------------------------------------------------------------------------
 
 step1:
-	@$(DIVIDER)
-	@printf '$(BOLD)STEP 1 — HIDDEN$(RESET)\n'
-	@printf '$(DIM)Backend has 3 tools. Gateway shows 2. production_admin is filtered.$(RESET)\n'
-	@$(DIVIDER)
 	@printf '\n'
-	@printf '$(CYAN)Backend (direct, no gateway):$(RESET)\n'
+	@printf '$(BOLD)backend   $(RESET)'
 	@curl -s http://localhost:3009/health | python3 -c \
-	  "import sys,json; r=json.load(sys.stdin); [print(f'  \033[2m{t}\033[0m') for t in r['tools']]"
-	@printf '\n'
-	@printf '$(CYAN)Gateway (what the agent sees):$(RESET)\n'
+	  "import sys,json; r=json.load(sys.stdin); print('  ' + '   '.join(r['tools']))"
+	@printf '$(BOLD)gateway   $(RESET)'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
 	  -H "Accept: application/json, text/event-stream" \
 	  -H "MCP-Protocol-Version: 2025-03-26" \
 	  -H "mcp-session-id: $$SID" \
 	  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-	  | python3 scripts/demo/parse_tools_list.py
-	@printf '\n$(ORANGE)production_admin: HIDDEN from agent discovery$(RESET)\n'
-	@printf '$(DIM)Watch Terminal A for the tools/list log entry$(RESET)\n\n'
+	  | python3 -c \
+	  "import sys,json; \
+	   lines=[l[5:].strip() for l in sys.stdin if l.startswith('data:')]; \
+	   r=json.loads(lines[0]) if lines else {}; \
+	   tools=[t['name'] for t in r.get('result',{}).get('tools',[])]; \
+	   print('  ' + '   '.join(tools) + '   \033[2m░░░░░░░░░░░░░░░\033[0m')"
+	@printf '\n$(DIM)                              ↑ production_admin filtered$(RESET)\n\n'
 
 step2:
 	@$(DIVIDER)
@@ -179,13 +178,10 @@ step3:
 	@printf '\n'
 
 step4:
-	@$(DIVIDER)
-	@printf '$(BOLD)STEP 4 — DENIED$(RESET)\n'
-	@printf '$(DIM)production_admin called directly. Hidden AND denied independently.$(RESET)\n'
-	@$(DIVIDER)
-	@printf '\n$(CYAN)REQUEST$(RESET)\n'
-	@printf '  production_admin(operation="restart", target="api-service")\n'
-	@printf '\n$(CYAN)CLIENT$(RESET)\n'
+	@printf '\n'
+	@printf '$(DIM)$ curl -s http://localhost:3000/mcp \\$(RESET)\n'
+	@printf '$(DIM)    -d '"'"'{"method":"tools/call","params":{"name":"production_admin",...}}'"'"'$(RESET)\n'
+	@printf '\n'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
 	  -H "Accept: application/json, text/event-stream" \
@@ -194,19 +190,10 @@ step4:
 	  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"production_admin","arguments":{"operation":"restart","target":"api-service"}}}' \
 	  | python3 -c \
 	  "import sys,json; \
-	   data=sys.stdin.read(); \
-	   lines=[l[5:].strip() for l in data.split('\n') if l.startswith('data:')]; \
-	   r=json.loads(lines[0]) if lines else {}; \
-	   r=r if r else (json.loads(data.strip()) if data.strip() else {}); \
-	   print(f'  \033[0;31m\033[1mDENIED\033[0m') if 'error' in r else print(f'  \033[0;32m\033[1mALLOWED\033[0m')" \
-	  2>/dev/null
-	@printf '\n$(CYAN)POLICY$(RESET)\n'
-	@docker logs guidance-policy 2>&1 | grep 'POLICY.*production_admin.*DENY' | tail -1 | \
-	  sed 's/\[POLICY\] /  /' | sed 's/tools\/call //' \
-	  || printf '  (see: docker logs guidance-policy)\n'
-	@printf '\n$(CYAN)BACKEND$(RESET)\n'
-	@curl -s http://localhost:3009/test/log | python3 -c \
-	  "import sys,json; log=json.load(sys.stdin); padm=[e for e in log if e.get('tool')=='production_admin']; print('  not invoked \u2713' if not padm else '  INVOKED \u2717 \u2014 '+str(padm))" \
+	   raw=sys.stdin.read().strip(); \
+	   lines=[l[5:].strip() for l in raw.split('\n') if l.startswith('data:')]; \
+	   r=json.loads(lines[0]) if lines else json.loads(raw) if raw else {}; \
+	   print(json.dumps(r, indent=2))" \
 	  2>/dev/null
 	@printf '\n'
 
