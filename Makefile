@@ -6,19 +6,19 @@
 #   make down            stop the stack
 #   make logs            follow live logs (all containers)
 #   make session         initialize an MCP session (run once after make up)
-#   make step1           HIDDEN: gateway hides production_admin
-#   make step2           ALLOWED: staging deploy succeeds
-#   make step3           DENY: same tool, production blocked
-#   make step4           DENY: production_admin direct call blocked
-#   make step5           backend log — what actually reached the server
-#   make step6           FAIL CLOSED: stop policy, verify nothing forwards
+#   make show-visibility   tool surface without vs through agentgateway
+#   make show-allow        staging deploy allowed end-to-end
+#   make show-deny         same tool, production arg blocked
+#   make show-hidden-denied  production_admin direct call denied
+#   make show-backend-log  what actually reached the MCP server
+#   make show-fail-closed  policy down — even staging is blocked
 #   make demo            run all steps in sequence
 #   make test            run contract tests against running stack
 #   make test-topology   verify default topology does not publish port 3001
 #   make verify          run all verification checks
 #   make clean           stop stack and remove session files
 
-.PHONY: up up-evidence down logs session step1 step2 step3 step4 step5 step6 demo test test-topology test-fail-closed verify clean
+.PHONY: up up-evidence down logs session show-visibility show-allow show-deny show-hidden-denied show-backend-log show-fail-closed demo test test-topology test-fail-closed verify clean
 
 # ---------------------------------------------------------------------------
 # Color codes — work on macOS Terminal, iTerm2, VS Code terminal
@@ -97,26 +97,26 @@ session:
 	    -H "MCP-Protocol-Version: 2025-03-26" \
 	    -H "mcp-session-id: $$SID" \
 	    -d '{"jsonrpc":"2.0","method":"notifications/initialized"}' > /dev/null; \
-	  printf '$(GREEN)Handshake complete.$(RESET) Run: $(CYAN)make step1$(RESET)\n'
+	  printf '$(GREEN)Handshake complete.$(RESET) Run: $(CYAN)make show-visibility$(RESET)\n'
 
 # ---------------------------------------------------------------------------
 # Demo steps
 # ---------------------------------------------------------------------------
 
-step1:
+show-visibility:
 	@printf '\n'
-	@printf '\033[38;2;148;163;184mno gateway  \033[0m   '
+	@printf '\033[38;2;148;163;184mwithout agentgateway\033[0m   '
 	@printf '\033[38;2;56;189;248mstatus\033[38;2;148;163;184m(read)\033[0m   '
-	@printf '\033[38;2;56;189;248mdeploy\033[38;2;148;163;184m(write·all envs)\033[0m   '
+	@printf '\033[38;2;56;189;248mdeploy\033[38;2;148;163;184m(all envs)\033[0m       '
 	@printf '\033[38;2;56;189;248mproduction_admin\033[38;2;148;163;184m(elevated)\033[0m\n'
 	@printf '\n'
-	@printf '\033[38;2;148;163;184magentgateway\033[0m   '
+	@printf '\033[38;2;148;163;184mwith agentgateway\033[0m      '
 	@printf '\033[38;2;52;211;153mstatus\033[38;2;148;163;184m(read)\033[0m   '
-	@printf '\033[38;2;245;158;11mdeploy\033[38;2;148;163;184m(staging)\033[0m         '
+	@printf '\033[38;2;245;158;11mdeploy\033[38;2;148;163;184m(staging)\033[0m       '
 	@printf '\033[38;2;251;113;133mproduction_admin\033[0m  \033[38;2;129;140;248m→ hidden\033[0m\n'
 	@printf '\n'
 
-step2:
+show-allow:
 	@$(DIVIDER)
 	@printf '$(BOLD)STEP 2 — ALLOWED$(RESET)\n'
 	@printf '$(DIM)deploy(staging) succeeds. Guidance and policy agree.$(RESET)\n'
@@ -138,7 +138,7 @@ step2:
 	  2>/dev/null
 	@printf '\n$(DIM)Watch Terminal A for: [POLICY] tools/call tool=deploy → Pass$(RESET)\n\n'
 
-step3:
+show-deny:
 	@$(DIVIDER)
 	@printf '$(BOLD)STEP 3 — ARG-SENSITIVE DENY$(RESET)\n'
 	@printf '$(DIM)Same tool name. Different argument. Different outcome.$(RESET)\n'
@@ -170,7 +170,7 @@ step3:
 	  2>/dev/null
 	@printf '\n'
 
-step4:
+show-hidden-denied:
 	@printf '\n'
 	@printf '\033[38;2;148;163;184mcurl -s http://localhost:3000/mcp\033[0m\n'
 	@printf '\033[38;2;148;163;184m  -d '"'"'{"method":"tools/call","params":{"name":"production_admin",...}}'"'"'\033[0m\n'
@@ -203,7 +203,7 @@ step4:
 	  2>/dev/null
 	@printf '\n'
 
-step5:
+show-backend-log:
 	@$(DIVIDER)
 	@printf '$(BOLD)STEP 5 — BACKEND LOG$(RESET)\n'
 	@printf '$(DIM)Proof of what actually reached the MCP server.$(RESET)\n'
@@ -216,7 +216,7 @@ step5:
 	   print('  \033[2m(empty)\033[0m')"
 	@printf '\n$(DIM)Only allowed calls appear. Denied calls never reached this log.$(RESET)\n\n'
 
-step6:
+show-fail-closed:
 	@$(DIVIDER)
 	@printf '$(BOLD)STEP 6 — FAIL CLOSED$(RESET)\n'
 	@printf '$(DIM)Policy processor stopped. Even staging is blocked.$(RESET)\n'
@@ -250,7 +250,7 @@ step6:
 # Run all steps in sequence
 # ---------------------------------------------------------------------------
 
-demo: step1 step2 step3 step4 step5 step6
+demo: show-visibility show-allow show-deny show-hidden-denied show-backend-log show-fail-closed
 	@$(DIVIDER)
 	@printf '$(GREEN)$(BOLD)Demo complete.$(RESET)\n'
 	@printf '$(DIM)All five enforcement properties demonstrated.$(RESET)\n'
