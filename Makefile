@@ -105,30 +105,12 @@ session:
 
 step1:
 	@printf '\n'
-	@printf '\033[38;2;148;163;184mbackend   \033[0m'
-	@curl -s http://localhost:3009/health | python3 -c \
-	  "import sys,json; \
-	   r=json.load(sys.stdin); \
-	   parts = ['  ']; \
-	   [parts.append('\033[38;2;56;189;248m' + t + '\033[0m   ') for t in r['tools']]; \
-	   print(''.join(parts).rstrip())"
-	@printf '\033[38;2;148;163;184mgateway   \033[0m'
-	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
-	  -H "Content-Type: application/json" \
-	  -H "Accept: application/json, text/event-stream" \
-	  -H "MCP-Protocol-Version: 2025-03-26" \
-	  -H "mcp-session-id: $$SID" \
-	  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-	  | python3 -c \
-	  "import sys,json; \
-	   lines=[l[5:].strip() for l in sys.stdin if l.startswith('data:')]; \
-	   r=json.loads(lines[0]) if lines else {}; \
-	   tools=[t['name'] for t in r.get('result',{}).get('tools',[])]; \
-	   parts = ['  ']; \
-	   [parts.append('\033[38;2;52;211;153m' + t + '\033[0m   ') for t in tools]; \
-	   parts.append('\033[38;2;251;113;133m░░░░░░░░░░░░░░░\033[0m'); \
-	   print(''.join(parts))"
-	@printf '\n\033[38;2;129;140;248m                              ↑ production_admin hidden\033[0m\n\n'
+	@printf '\033[38;2;148;163;184mthrough agentgateway\033[0m   '
+	@printf '\033[38;2;52;211;153mstatus\033[38;2;148;163;184m(read)\033[0m   '
+	@printf '\033[38;2;245;158;11mdeploy\033[38;2;148;163;184m(write)\033[0m\n'
+	@printf '\n'
+	@printf '                       \033[38;2;251;113;133mproduction_admin\033[38;2;148;163;184m(elevated)\033[0m   \033[38;2;129;140;248m→  hidden\033[0m\n'
+	@printf '\n'
 
 step2:
 	@$(DIVIDER)
