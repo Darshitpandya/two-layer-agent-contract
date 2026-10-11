@@ -6,19 +6,19 @@
 #   make down            stop the stack
 #   make logs            follow live logs (all containers)
 #   make session         initialize an MCP session (run once after make up)
-#   make step1           HIDDEN: gateway hides production_admin
-#   make step2           ALLOWED: staging deploy succeeds
-#   make step3           DENY: same tool, production blocked
-#   make step4           DENY: production_admin direct call blocked
-#   make step5           backend log — what actually reached the server
-#   make step6           FAIL CLOSED: stop policy, verify nothing forwards
+#   make show-visibility   tool surface without vs through agentgateway
+#   make show-allow        staging deploy allowed end-to-end
+#   make show-deny         same tool, production arg blocked
+#   make show-hidden-denied  production_admin direct call denied
+#   make show-backend-log  what actually reached the MCP server
+#   make show-fail-closed  policy down — even staging is blocked
 #   make demo            run all steps in sequence
 #   make test            run contract tests against running stack
 #   make test-topology   verify default topology does not publish port 3001
 #   make verify          run all verification checks
 #   make clean           stop stack and remove session files
 
-.PHONY: up up-evidence down logs session step1 step2 step3 step4 step5 step6 demo test test-topology test-fail-closed verify clean
+.PHONY: up up-evidence down logs session show-visibility show-allow show-deny show-hidden-denied show-backend-log show-fail-closed demo test test-topology test-fail-closed verify clean
 
 # ---------------------------------------------------------------------------
 # Color codes — work on macOS Terminal, iTerm2, VS Code terminal
@@ -97,34 +97,26 @@ session:
 	    -H "MCP-Protocol-Version: 2025-03-26" \
 	    -H "mcp-session-id: $$SID" \
 	    -d '{"jsonrpc":"2.0","method":"notifications/initialized"}' > /dev/null; \
-	  printf '$(GREEN)Handshake complete.$(RESET) Run: $(CYAN)make step1$(RESET)\n'
+	  printf '$(GREEN)Handshake complete.$(RESET) Run: $(CYAN)make show-visibility$(RESET)\n'
 
 # ---------------------------------------------------------------------------
 # Demo steps
 # ---------------------------------------------------------------------------
 
-step1:
-	@$(DIVIDER)
-	@printf '$(BOLD)STEP 1 — HIDDEN$(RESET)\n'
-	@printf '$(DIM)Backend has 3 tools. Gateway shows 2. production_admin is filtered.$(RESET)\n'
-	@$(DIVIDER)
+show-visibility:
 	@printf '\n'
-	@printf '$(CYAN)Backend (direct, no gateway):$(RESET)\n'
-	@curl -s http://localhost:3009/health | python3 -c \
-	  "import sys,json; r=json.load(sys.stdin); [print(f'  \033[2m{t}\033[0m') for t in r['tools']]"
+	@printf '\033[38;2;56;189;248mwithout agentgateway:\033[0m\n'
+	@printf '  \033[38;2;148;163;184mstatus\033[38;2;94;163;184m(read)\033[0m\n'
+	@printf '  \033[38;2;148;163;184mdeploy\033[38;2;94;163;184m(all envs)\033[0m\n'
+	@printf '  \033[38;2;148;163;184mproduction_admin\033[38;2;94;163;184m(elevated)\033[0m\n'
 	@printf '\n'
-	@printf '$(CYAN)Gateway (what the agent sees):$(RESET)\n'
-	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
-	  -H "Content-Type: application/json" \
-	  -H "Accept: application/json, text/event-stream" \
-	  -H "MCP-Protocol-Version: 2025-03-26" \
-	  -H "mcp-session-id: $$SID" \
-	  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-	  | python3 scripts/demo/parse_tools_list.py
-	@printf '\n$(ORANGE)production_admin: HIDDEN from agent discovery$(RESET)\n'
-	@printf '$(DIM)Watch Terminal A for the tools/list log entry$(RESET)\n\n'
+	@printf '\033[38;2;56;189;248mwith agentgateway:\033[0m\n'
+	@printf '  \033[38;2;52;211;153mstatus\033[38;2;148;163;184m(read)\033[0m\n'
+	@printf '  \033[38;2;245;158;11mdeploy\033[38;2;148;163;184m(staging)\033[0m\n'
+	@printf '  \033[38;2;251;113;133mproduction_admin\033[0m   \033[38;2;129;140;248m→  hidden\033[0m\n'
+	@printf '\n'
 
-step2:
+show-allow:
 	@$(DIVIDER)
 	@printf '$(BOLD)STEP 2 — ALLOWED$(RESET)\n'
 	@printf '$(DIM)deploy(staging) succeeds. Guidance and policy agree.$(RESET)\n'
@@ -146,7 +138,7 @@ step2:
 	  2>/dev/null
 	@printf '\n$(DIM)Watch Terminal A for: [POLICY] tools/call tool=deploy → Pass$(RESET)\n\n'
 
-step3:
+show-deny:
 	@$(DIVIDER)
 	@printf '$(BOLD)STEP 3 — ARG-SENSITIVE DENY$(RESET)\n'
 	@printf '$(DIM)Same tool name. Different argument. Different outcome.$(RESET)\n'
@@ -178,14 +170,11 @@ step3:
 	  2>/dev/null
 	@printf '\n'
 
-step4:
-	@$(DIVIDER)
-	@printf '$(BOLD)STEP 4 — DENIED$(RESET)\n'
-	@printf '$(DIM)production_admin called directly. Hidden AND denied independently.$(RESET)\n'
-	@$(DIVIDER)
-	@printf '\n$(CYAN)REQUEST$(RESET)\n'
-	@printf '  production_admin(operation="restart", target="api-service")\n'
-	@printf '\n$(CYAN)CLIENT$(RESET)\n'
+show-hidden-denied:
+	@printf '\n'
+	@printf '\033[38;2;148;163;184mcurl -s http://localhost:3000/mcp\033[0m\n'
+	@printf '\033[38;2;148;163;184m  -d '"'"'{"method":"tools/call","params":{"name":"production_admin",...}}'"'"'\033[0m\n'
+	@printf '\n'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
 	  -H "Accept: application/json, text/event-stream" \
@@ -194,23 +183,27 @@ step4:
 	  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"production_admin","arguments":{"operation":"restart","target":"api-service"}}}' \
 	  | python3 -c \
 	  "import sys,json; \
-	   data=sys.stdin.read(); \
-	   lines=[l[5:].strip() for l in data.split('\n') if l.startswith('data:')]; \
-	   r=json.loads(lines[0]) if lines else {}; \
-	   r=r if r else (json.loads(data.strip()) if data.strip() else {}); \
-	   print(f'  \033[0;31m\033[1mDENIED\033[0m') if 'error' in r else print(f'  \033[0;32m\033[1mALLOWED\033[0m')" \
-	  2>/dev/null
-	@printf '\n$(CYAN)POLICY$(RESET)\n'
-	@docker logs guidance-policy 2>&1 | grep 'POLICY.*production_admin.*DENY' | tail -1 | \
-	  sed 's/\[POLICY\] /  /' | sed 's/tools\/call //' \
-	  || printf '  (see: docker logs guidance-policy)\n'
-	@printf '\n$(CYAN)BACKEND$(RESET)\n'
-	@curl -s http://localhost:3009/test/log | python3 -c \
-	  "import sys,json; log=json.load(sys.stdin); padm=[e for e in log if e.get('tool')=='production_admin']; print('  not invoked \u2713' if not padm else '  INVOKED \u2717 \u2014 '+str(padm))" \
+	   LABEL='\033[38;2;148;163;184m'; \
+	   VAL='\033[38;2;248;250;252m'; \
+	   DENY='\033[38;2;251;113;133m'; \
+	   INFRA='\033[38;2;129;140;248m'; \
+	   R='\033[0m'; \
+	   raw=sys.stdin.read().strip(); \
+	   lines=[l[5:].strip() for l in raw.split('\n') if l.startswith('data:')]; \
+	   r=json.loads(lines[0]) if lines else json.loads(raw) if raw else {}; \
+	   err=r.get('error',{}); \
+	   print(LABEL+'{'+R); \
+	   print(INFRA+'  \"jsonrpc\"'+R+': '+VAL+'\"'+str(r.get('jsonrpc','2.0'))+'\"'+R+','); \
+	   print(INFRA+'  \"id\"'+R+':       '+VAL+str(r.get('id',''))+R+','); \
+	   print(INFRA+'  \"error\"'+R+': {'); \
+	   print(INFRA+'    \"code\"'+R+':    '+DENY+str(err.get('code',''))+R+','); \
+	   print(INFRA+'    \"message\"'+R+': '+DENY+'\"'+str(err.get('message',''))+R+'\"'); \
+	   print(LABEL+'  }'+R); \
+	   print(LABEL+'}'+R)" \
 	  2>/dev/null
 	@printf '\n'
 
-step5:
+show-backend-log:
 	@$(DIVIDER)
 	@printf '$(BOLD)STEP 5 — BACKEND LOG$(RESET)\n'
 	@printf '$(DIM)Proof of what actually reached the MCP server.$(RESET)\n'
@@ -223,7 +216,7 @@ step5:
 	   print('  \033[2m(empty)\033[0m')"
 	@printf '\n$(DIM)Only allowed calls appear. Denied calls never reached this log.$(RESET)\n\n'
 
-step6:
+show-fail-closed:
 	@$(DIVIDER)
 	@printf '$(BOLD)STEP 6 — FAIL CLOSED$(RESET)\n'
 	@printf '$(DIM)Policy processor stopped. Even staging is blocked.$(RESET)\n'
@@ -257,7 +250,7 @@ step6:
 # Run all steps in sequence
 # ---------------------------------------------------------------------------
 
-demo: step1 step2 step3 step4 step5 step6
+demo: show-visibility show-allow show-deny show-hidden-denied show-backend-log show-fail-closed
 	@$(DIVIDER)
 	@printf '$(GREEN)$(BOLD)Demo complete.$(RESET)\n'
 	@printf '$(DIM)All five enforcement properties demonstrated.$(RESET)\n'
