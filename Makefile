@@ -105,6 +105,9 @@ session:
 
 show-visibility:
 	@printf '\n'
+	@printf '\033[38;2;56;189;248mtool surface — what the agent sees\033[0m\n'
+	@printf '\033[38;2;148;163;184magentgateway narrows visibility before discovery.\033[0m\n'
+	@printf '\n'
 	@printf '\033[38;2;56;189;248mwithout agentgateway:\033[0m\n'
 	@printf '  \033[38;2;148;163;184mstatus\033[38;2;94;163;184m(read)\033[0m\n'
 	@printf '  \033[38;2;148;163;184mdeploy\033[38;2;94;163;184m(all envs)\033[0m\n'
@@ -117,12 +120,13 @@ show-visibility:
 	@printf '\n'
 
 show-allow:
-	@$(DIVIDER)
-	@printf '$(BOLD)STEP 2 — ALLOWED$(RESET)\n'
-	@printf '$(DIM)deploy(staging) succeeds. Guidance and policy agree.$(RESET)\n'
-	@$(DIVIDER)
+	@printf '\n'
+	@printf '\033[38;2;52;211;153mdeploy — allowed\033[0m\n'
+	@printf '\033[38;2;148;163;184mguidance and policy agree. staging reaches the backend.\033[0m\n'
+	@printf '\n'
 	@curl -s -X DELETE http://localhost:3009/test/log > /dev/null
-	@printf '\n$(CYAN)deploy(environment=staging, version=1.2.0):$(RESET)\n'
+	@printf '\033[38;2;148;163;184mdeploy(environment=staging, version=1.2.0)\033[0m\n'
+	@printf '\n'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
 	  -H "Accept: application/json, text/event-stream" \
@@ -136,16 +140,15 @@ show-allow:
 	   c=json.loads(r['result']['content'][0]['text']) if 'result' in r else None; \
 	   print(f'  \033[0;32m\033[1mALLOW\033[0m  success={c[\"success\"]}  environment={c[\"environment\"]}  version={c[\"version\"]}') if c else print(f'  \033[0;31mDENY\033[0m  {r.get(\"error\",{}).get(\"message\",\"\")}') " \
 	  2>/dev/null
-	@printf '\n$(DIM)Watch Terminal A for: [POLICY] tools/call tool=deploy → Pass$(RESET)\n\n'
+	@printf '\n'
 
 show-deny:
-	@$(DIVIDER)
-	@printf '$(BOLD)STEP 3 — ARG-SENSITIVE DENY$(RESET)\n'
-	@printf '$(DIM)Same tool name. Different argument. Different outcome.$(RESET)\n'
-	@$(DIVIDER)
-	@printf '\n$(CYAN)REQUEST$(RESET)\n'
-	@printf '  deploy(environment="production", version="1.2.0")\n'
-	@printf '\n$(CYAN)CLIENT$(RESET)\n'
+	@printf '\n'
+	@printf '\033[38;2;251;113;133mdeploy — denied\033[0m\n'
+	@printf '\033[38;2;148;163;184msame tool. production argument. blocked before backend.\033[0m\n'
+	@printf '\n'
+	@printf '\033[38;2;148;163;184mdeploy(environment=production, version=1.2.0)\033[0m\n'
+	@printf '\n'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
 	  -H "Accept: application/json, text/event-stream" \
@@ -160,13 +163,15 @@ show-deny:
 	   r=r if r else (json.loads(data.strip()) if data.strip() else {}); \
 	   print(f'  \033[0;31m\033[1mDENIED\033[0m') if 'error' in r else print(f'  \033[0;32m\033[1mALLOWED\033[0m')" \
 	  2>/dev/null
-	@printf '\n$(CYAN)POLICY$(RESET)\n'
+	@printf '\n'
+	@printf '\033[38;2;148;163;184mpolicy log:\033[0m\n'
 	@docker logs guidance-policy 2>&1 | grep 'POLICY.*deploy.*DENY' | tail -1 | \
 	  sed 's/\[POLICY\] /  /' | sed 's/tools\/call //' \
-	  || printf '  (see: docker logs guidance-policy)\n'
-	@printf '\n$(CYAN)BACKEND$(RESET)\n'
+	  || printf '  \033[38;2;148;163;184m(see: docker logs guidance-policy)\033[0m\n'
+	@printf '\n'
+	@printf '\033[38;2;148;163;184mbackend receipt:\033[0m\n'
 	@curl -s http://localhost:3009/test/log | python3 -c \
-	  "import sys,json; log=json.load(sys.stdin); prod=[e for e in log if e.get('args',{}).get('environment')=='production']; print('  not invoked ✓' if not prod else '  INVOKED ✗ — '+str(prod))" \
+	  "import sys,json; log=json.load(sys.stdin); prod=[e for e in log if e.get('args',{}).get('environment')=='production']; print('  \033[38;2;52;211;153mnot invoked ✓\033[0m' if not prod else '  \033[38;2;251;113;133mINVOKED ✗\033[0m — '+str(prod))" \
 	  2>/dev/null
 	@printf '\n'
 
@@ -204,28 +209,27 @@ show-hidden-denied:
 	@printf '\n'
 
 show-backend-log:
-	@$(DIVIDER)
-	@printf '$(BOLD)STEP 5 — BACKEND LOG$(RESET)\n'
-	@printf '$(DIM)Proof of what actually reached the MCP server.$(RESET)\n'
-	@$(DIVIDER)
-	@printf '\n$(CYAN)Calls that reached the backend:$(RESET)\n'
+	@printf '\n'
+	@printf '\033[38;2;56;189;248mbackend receipt log\033[0m\n'
+	@printf '\033[38;2;148;163;184monly allowed calls reached the server. denied calls never arrived.\033[0m\n'
+	@printf '\n'
 	@curl -s http://localhost:3009/test/log | python3 -c \
 	  "import sys,json; \
 	   log=json.load(sys.stdin); \
 	   [print(f'  \033[0;32m✓\033[0m  tool=\033[1m{e[\"tool\"]}\033[0m  environment={e[\"args\"].get(\"environment\",\"n/a\")}') for e in log] or \
 	   print('  \033[2m(empty)\033[0m')"
-	@printf '\n$(DIM)Only allowed calls appear. Denied calls never reached this log.$(RESET)\n\n'
+	@printf '\n'
 
 show-fail-closed:
-	@$(DIVIDER)
-	@printf '$(BOLD)STEP 6 — FAIL CLOSED$(RESET)\n'
-	@printf '$(DIM)Policy processor stopped. Even staging is blocked.$(RESET)\n'
-	@$(DIVIDER)
-	@printf '\n$(ORANGE)Stopping policy processor...$(RESET)\n'
+	@printf '\n'
+	@printf '\033[38;2;245;158;11mfail-closed — policy unavailable\033[0m\n'
+	@printf '\033[38;2;148;163;184mpolicy processor stopped. even allowed calls are blocked.\033[0m\n'
+	@printf '\n'
+	@printf '\033[38;2;148;163;184mstopping policy processor...\033[0m\n'
 	@docker stop guidance-policy > /dev/null
 	@sleep 3
-	@printf '$(RED)Policy: STOPPED$(RESET)\n\n'
-	@printf '$(CYAN)deploy(environment=staging) with policy processor down:$(RESET)\n'
+	@printf '\033[38;2;251;113;133mpolicy: STOPPED\033[0m\n\n'
+	@printf '\033[38;2;148;163;184mdeploy(environment=staging) — policy down:\033[0m\n'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
 	  -H "Accept: application/json, text/event-stream" \
@@ -238,11 +242,11 @@ show-fail-closed:
 	   r=json.loads(lines[0]) if lines else {}; \
 	   print(f'  \033[0;31m\033[1mDENY\033[0m   {r[\"error\"][\"message\"]}') if 'error' in r else print('  \033[0;31mDENY\033[0m  (failClosed — policy processor unreachable)')" \
 	  2>/dev/null
-	@printf '\n$(RED)failClosed: policy unavailable = request not forwarded$(RESET)\n'
-	@printf '\n$(ORANGE)Restarting policy processor...$(RESET)\n'
+	@printf '\n\033[38;2;251;113;133mfailClosed: no policy decision = request not forwarded\033[0m\n'
+	@printf '\n\033[38;2;148;163;184mrestarting policy processor...\033[0m\n'
 	@docker start guidance-policy > /dev/null
 	@sleep 3
-	@printf '$(GREEN)Policy: RUNNING$(RESET)  '
+	@printf '\033[38;2;52;211;153mpolicy: RUNNING\033[0m  '
 	@curl -s http://localhost:3002/health
 	@printf '\n\n'
 
