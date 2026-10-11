@@ -105,15 +105,15 @@ session:
 
 show-visibility:
 	@printf '\n'
-	@printf '\033[38;2;148;163;184mwithout agentgateway\033[0m   '
-	@printf '\033[38;2;56;189;248mstatus\033[38;2;148;163;184m(read)\033[0m   '
-	@printf '\033[38;2;56;189;248mdeploy\033[38;2;148;163;184m(all envs)\033[0m       '
-	@printf '\033[38;2;56;189;248mproduction_admin\033[38;2;148;163;184m(elevated)\033[0m\n'
+	@printf '\033[38;2;56;189;248mwithout agentgateway:\033[0m\n'
+	@printf '  \033[38;2;148;163;184mstatus\033[38;2;94;163;184m(read)\033[0m\n'
+	@printf '  \033[38;2;148;163;184mdeploy\033[38;2;94;163;184m(all envs)\033[0m\n'
+	@printf '  \033[38;2;148;163;184mproduction_admin\033[38;2;94;163;184m(elevated)\033[0m\n'
 	@printf '\n'
-	@printf '\033[38;2;148;163;184mwith agentgateway\033[0m      '
-	@printf '\033[38;2;52;211;153mstatus\033[38;2;148;163;184m(read)\033[0m   '
-	@printf '\033[38;2;245;158;11mdeploy\033[38;2;148;163;184m(staging)\033[0m       '
-	@printf '\033[38;2;251;113;133mproduction_admin\033[0m  \033[38;2;129;140;248m→ hidden\033[0m\n'
+	@printf '\033[38;2;56;189;248mwith agentgateway:\033[0m\n'
+	@printf '  \033[38;2;52;211;153mstatus\033[38;2;148;163;184m(read)\033[0m\n'
+	@printf '  \033[38;2;245;158;11mdeploy\033[38;2;148;163;184m(staging)\033[0m\n'
+	@printf '  \033[38;2;251;113;133mproduction_admin\033[0m   \033[38;2;129;140;248m→  hidden\033[0m\n'
 	@printf '\n'
 
 show-allow:
