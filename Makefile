@@ -105,10 +105,14 @@ session:
 
 step1:
 	@printf '\n'
-	@printf '$(BOLD)backend   $(RESET)'
+	@printf '\033[38;2;148;163;184mbackend   \033[0m'
 	@curl -s http://localhost:3009/health | python3 -c \
-	  "import sys,json; r=json.load(sys.stdin); print('  ' + '   '.join(r['tools']))"
-	@printf '$(BOLD)gateway   $(RESET)'
+	  "import sys,json; \
+	   r=json.load(sys.stdin); \
+	   parts = ['  ']; \
+	   [parts.append('\033[38;2;56;189;248m' + t + '\033[0m   ') for t in r['tools']]; \
+	   print(''.join(parts).rstrip())"
+	@printf '\033[38;2;148;163;184mgateway   \033[0m'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
 	  -H "Accept: application/json, text/event-stream" \
@@ -120,8 +124,11 @@ step1:
 	   lines=[l[5:].strip() for l in sys.stdin if l.startswith('data:')]; \
 	   r=json.loads(lines[0]) if lines else {}; \
 	   tools=[t['name'] for t in r.get('result',{}).get('tools',[])]; \
-	   print('  ' + '   '.join(tools) + '   \033[2m░░░░░░░░░░░░░░░\033[0m')"
-	@printf '\n$(DIM)                              ↑ production_admin filtered$(RESET)\n\n'
+	   parts = ['  ']; \
+	   [parts.append('\033[38;2;52;211;153m' + t + '\033[0m   ') for t in tools]; \
+	   parts.append('\033[38;2;251;113;133m░░░░░░░░░░░░░░░\033[0m'); \
+	   print(''.join(parts))"
+	@printf '\n\033[38;2;129;140;248m                              ↑ production_admin hidden\033[0m\n\n'
 
 step2:
 	@$(DIVIDER)
@@ -179,8 +186,8 @@ step3:
 
 step4:
 	@printf '\n'
-	@printf '$(DIM)$ curl -s http://localhost:3000/mcp \\$(RESET)\n'
-	@printf '$(DIM)    -d '"'"'{"method":"tools/call","params":{"name":"production_admin",...}}'"'"'$(RESET)\n'
+	@printf '\033[38;2;148;163;184mcurl -s http://localhost:3000/mcp\033[0m\n'
+	@printf '\033[38;2;148;163;184m  -d '"'"'{"method":"tools/call","params":{"name":"production_admin",...}}'"'"'\033[0m\n'
 	@printf '\n'
 	@. /tmp/mcp_sid.sh && curl -s "http://localhost:3000/mcp" \
 	  -H "Content-Type: application/json" \
@@ -190,10 +197,23 @@ step4:
 	  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"production_admin","arguments":{"operation":"restart","target":"api-service"}}}' \
 	  | python3 -c \
 	  "import sys,json; \
+	   LABEL='\033[38;2;148;163;184m'; \
+	   VAL='\033[38;2;248;250;252m'; \
+	   DENY='\033[38;2;251;113;133m'; \
+	   INFRA='\033[38;2;129;140;248m'; \
+	   R='\033[0m'; \
 	   raw=sys.stdin.read().strip(); \
 	   lines=[l[5:].strip() for l in raw.split('\n') if l.startswith('data:')]; \
 	   r=json.loads(lines[0]) if lines else json.loads(raw) if raw else {}; \
-	   print(json.dumps(r, indent=2))" \
+	   err=r.get('error',{}); \
+	   print(LABEL+'{'+R); \
+	   print(INFRA+'  \"jsonrpc\"'+R+': '+VAL+'\"'+str(r.get('jsonrpc','2.0'))+'\"'+R+','); \
+	   print(INFRA+'  \"id\"'+R+':       '+VAL+str(r.get('id',''))+R+','); \
+	   print(INFRA+'  \"error\"'+R+': {'); \
+	   print(INFRA+'    \"code\"'+R+':    '+DENY+str(err.get('code',''))+R+','); \
+	   print(INFRA+'    \"message\"'+R+': '+DENY+'\"'+str(err.get('message',''))+R+'\"'); \
+	   print(LABEL+'  }'+R); \
+	   print(LABEL+'}'+R)" \
 	  2>/dev/null
 	@printf '\n'
 
