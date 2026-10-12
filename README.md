@@ -62,30 +62,7 @@ make show-visibility   # see the enforcement boundary in action
 
 Three containers, one enforcement boundary:
 
-```
-GUIDANCE PLANE
-┌─────────────────────────────────────┐
-│  AGENTS.md                          │
-│  "deployment targets staging"       │
-└────────────────┬────────────────────┘
-                 │ influences
-                 ▼
-           Coding Agent
-           candidate MCP action
-                 │
-                 ▼ MCP boundary
-ENFORCEMENT PLANE
-┌─────────────────────────────────────┐
-│  agentgateway v1.5                  │
-│  ├─ mcpAuthorization (discovery)    │
-│  └─ ExtMCP policy processor         │
-│      argument-sensitive rules       │
-│      failClosed semantics           │
-│                                     │
-│  Lab MCP server                     │
-│  status · deploy · production_admin │
-└─────────────────────────────────────┘
-```
+![The Two-Layer Agent Contract — guidance plane influences candidate action, enforcement plane determines executable authority](docs/assets/two-layer-contract.gif)
 
 ---
 
