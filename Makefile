@@ -245,10 +245,18 @@ show-fail-closed:
 	@printf '\n\033[38;2;251;113;133mfailClosed: no policy decision = request not forwarded\033[0m\n'
 	@printf '\n\033[38;2;148;163;184mrestarting policy processor...\033[0m\n'
 	@docker start tlac-policy > /dev/null
-	@sleep 3
-	@printf '\033[38;2;52;211;153mpolicy: RUNNING\033[0m  '
-	@curl -s http://localhost:3002/health
-	@printf '\n\n'
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	  sleep 2; \
+	  STATUS=$$(curl -s http://localhost:3002/health 2>/dev/null); \
+	  if [ -n "$$STATUS" ]; then break; fi; \
+	done
+	@printf '\033[38;2;52;211;153mpolicy: RUNNING\033[0m\n'
+	@curl -s http://localhost:3002/health | python3 -c \
+	  "import sys,json; \
+	   r=json.loads(sys.stdin.read()); \
+	   print('  \033[38;2;52;211;153mstatus:      ' + r.get('status','') + '\033[0m'); \
+	   print('  \033[38;2;148;163;184mmode:        ' + r.get('mode','') + '\033[0m')"
+	@printf '\n'
 
 # ---------------------------------------------------------------------------
 # Run all steps in sequence
