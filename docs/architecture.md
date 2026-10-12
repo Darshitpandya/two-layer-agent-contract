@@ -1,6 +1,6 @@
 # Architecture: The Two-Layer Agent Contract
 
-This document describes the architecture of the guidance-is-not-policy reference implementation and explains the design decisions behind each component. Three diagrams are provided: the overall contract structure, the MCP protocol boundary, and the enforcement decision flow.
+This document describes the architecture of the two-layer-agent-contract reference implementation and explains the design decisions behind each component. Three diagrams are provided: the overall contract structure, the MCP protocol boundary, and the enforcement decision flow.
 
 ---
 

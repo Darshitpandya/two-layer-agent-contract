@@ -1,4 +1,4 @@
-# guidance-is-not-policy
+# two-layer-agent-contract
 
 **The Two-Layer Agent Contract: a reproducible reference implementation.**
 
@@ -53,8 +53,8 @@ The lab, Docker Compose, and Makefile are for running the demo — not for your 
 **Prerequisites:** Docker Desktop, `make` (already on macOS/Linux — verify with `make --version`)
 
 ```bash
-git clone https://github.com/Darshitpandya/guidance-is-not-policy.git
-cd guidance-is-not-policy
+git clone https://github.com/Darshitpandya/two-layer-agent-contract.git
+cd two-layer-agent-contract
 make up
 ```
 
@@ -240,7 +240,7 @@ The full architecture with Mermaid diagrams: [`docs/architecture.md`](docs/archi
 ## Repository layout
 
 ```
-guidance-is-not-policy/
+two-layer-agent-contract/
 │
 ├── AGENTS.md                    ← Guidance plane: repo-local context for coding agents
 │

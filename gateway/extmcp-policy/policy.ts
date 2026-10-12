@@ -1,5 +1,5 @@
 /**
- * ExtMCP gRPC policy processor for guidance-is-not-policy.
+ * ExtMCP gRPC policy processor for two-layer-agent-contract.
  *
  * Implements the ExtMcp gRPC service from the agentgateway ExtMCP protocol:
  * https://github.com/agentgateway/agentgateway/blob/main/crates/protos/proto/ext_mcp.proto

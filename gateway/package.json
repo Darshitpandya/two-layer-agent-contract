@@ -1,5 +1,5 @@
 {
-  "name": "guidance-is-not-policy-gateway",
+  "name": "two-layer-agent-contract-gateway",
   "version": "1.0.0",
   "description": "Policy-enforcing MCP gateway for the Two-Layer Agent Contract reference implementation",
   "main": "dist/index.js",

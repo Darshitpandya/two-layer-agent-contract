@@ -1,5 +1,5 @@
 /**
- * MCP Streamable HTTP server for the guidance-is-not-policy lab.
+ * MCP Streamable HTTP server for the two-layer-agent-contract lab.
  *
  * Implements the MCP streamable HTTP transport so agentgateway v1.5.0 can
  * connect to it as a real MCP backend (not a plain JSON-RPC proxy).
@@ -62,7 +62,7 @@ const transports = new Map<string, StreamableHTTPServerTransport>();
 
 function createMcpServer(): Server {
   const server = new Server(
-    { name: 'guidance-is-not-policy-lab', version: '1.0.0' },
+    { name: 'two-layer-agent-contract-lab', version: '1.0.0' },
     { capabilities: { tools: {} } }
   );
 

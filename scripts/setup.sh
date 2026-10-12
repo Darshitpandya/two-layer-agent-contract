@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
 
-echo "==> guidance-is-not-policy: setup"
+echo "==> two-layer-agent-contract: setup"
 echo ""
 
 # Check prerequisites

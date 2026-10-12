@@ -1,4 +1,4 @@
-# guidance-is-not-policy — Lab MCP Server
+# two-layer-agent-contract — Lab MCP Server
 
 This directory contains a minimal MCP server that acts as the **backend** in the Two-Layer Agent Contract reference implementation.
 

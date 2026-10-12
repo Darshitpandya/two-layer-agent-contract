@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run-lab.sh — start the full guidance-is-not-policy lab stack
+# run-lab.sh — start the full two-layer-agent-contract lab stack
 #
 # Stack:
 #   Port 3001  Lab MCP server (Node.js, streamable HTTP)
@@ -25,7 +25,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "=== guidance-is-not-policy lab stack ==="
+echo "=== two-layer-agent-contract lab stack ==="
 echo ""
 echo "  Layer 1: agentgateway v1.5.0 mcpAuthorization (tool-name control)"
 echo "  Layer 2: ExtMCP gRPC processor (argument-sensitive enforcement)"

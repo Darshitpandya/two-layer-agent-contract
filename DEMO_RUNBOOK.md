@@ -1,7 +1,7 @@
 # DEMO RUNBOOK
 ## Intent Is Not Policy: The Two-Layer Contract for Production Agents
 
-Branch: `auditing` · Repo: `guidance-is-not-policy`
+Branch: `auditing` · Repo: `two-layer-agent-contract`
 
 ---
 
@@ -10,7 +10,7 @@ Branch: `auditing` · Repo: `guidance-is-not-policy`
 - Docker Desktop running, no other service on ports 3000, 3002, 3009
 - Two terminal windows open side by side
 - Browser tab ready: `http://localhost:3009/test/log`
-- All commands run from repo root: `guidance-is-not-policy/`
+- All commands run from repo root: `two-layer-agent-contract/`
 
 ---
 

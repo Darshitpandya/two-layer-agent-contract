@@ -1,7 +1,7 @@
-# Release Checklist — guidance-is-not-policy
+# Release Checklist — two-layer-agent-contract
 
 Conference: Agentic Engineering Day NZ
-Repository: https://github.com/Darshitpandya/guidance-is-not-policy (currently PRIVATE)
+Repository: https://github.com/Darshitpandya/two-layer-agent-contract (currently PRIVATE)
 Target tag: `v1.0.0-conference`
 
 ## Known-good baseline (already verified)
@@ -47,7 +47,7 @@ Complete these steps on the `auditing` branch / after merging PR #8.
   ```
 - [ ] Test README commands on a **clean checkout** (fresh directory, no local state)
   ```sh
-  git clone https://github.com/Darshitpandya/guidance-is-not-policy.git /tmp/gnp-test
+  git clone https://github.com/Darshitpandya/two-layer-agent-contract.git /tmp/gnp-test
   cd /tmp/gnp-test
   # Follow README quickstart steps exactly
   ```
@@ -84,11 +84,11 @@ Run these steps on the day of the talk, before you go on stage.
 
 - [ ] Make repository public
   ```sh
-  gh repo edit guidance-is-not-policy --visibility public
+  gh repo edit two-layer-agent-contract --visibility public
   ```
 - [ ] Enable branch protection on `main` (requires public repo)
   ```sh
-  gh api repos/Darshitpandya/guidance-is-not-policy/branches/main/protection \
+  gh api repos/Darshitpandya/two-layer-agent-contract/branches/main/protection \
     --method PUT \
     -f 'required_status_checks[strict]=true' \
     -f 'required_status_checks[contexts][]=build-and-test' \
@@ -98,8 +98,8 @@ Run these steps on the day of the talk, before you go on stage.
     -f 'allow_force_pushes=false' \
     -f 'allow_deletions=false'
   ```
-- [ ] Verify public URL loads in browser: https://github.com/Darshitpandya/guidance-is-not-policy
-- [ ] Generate QR code pointing to: `https://github.com/Darshitpandya/guidance-is-not-policy`
+- [ ] Verify public URL loads in browser: https://github.com/Darshitpandya/two-layer-agent-contract
+- [ ] Generate QR code pointing to: `https://github.com/Darshitpandya/two-layer-agent-contract`
 - [ ] **Physically scan the QR code** before putting it on the slide (confirm it resolves)
 - [ ] Replace `[QR PLACEHOLDER]` in `slide-deck.md` (Slide 29 — closing slide) with QR code image
 - [ ] Run final `make verify` on the **conference machine**
@@ -134,8 +134,8 @@ Verify the demo environment is fully operational before going on stage.
 
 - [ ] Clone the (now public) repo on the conference machine
   ```sh
-  git clone https://github.com/Darshitpandya/guidance-is-not-policy.git
-  cd guidance-is-not-policy
+  git clone https://github.com/Darshitpandya/two-layer-agent-contract.git
+  cd two-layer-agent-contract
   ```
 - [ ] `make up` completes successfully (services start, no errors)
   ```sh
@@ -173,7 +173,7 @@ Verify the demo environment is fully operational before going on stage.
 
 | Field | Value |
 |-------|-------|
-| Destination URL | `https://github.com/Darshitpandya/guidance-is-not-policy` |
+| Destination URL | `https://github.com/Darshitpandya/two-layer-agent-contract` |
 | Slide | 29 (closing slide) |
 | Placeholder in slide-deck.md | `[QR PLACEHOLDER]` |
 

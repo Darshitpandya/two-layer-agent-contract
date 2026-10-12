@@ -2,7 +2,7 @@
  * Lab MCP server entry point.
  *
  * Exposes three tools (status, deploy, production_admin) over stdio transport
- * so that the guidance-is-not-policy gateway and contract tests can interact
+ * so that the two-layer-agent-contract gateway and contract tests can interact
  * with a realistic but in-process backend.
  *
  * stdout is reserved for MCP JSON-RPC messages; all diagnostic output goes to
@@ -32,7 +32,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const server = new Server(
-  { name: 'guidance-is-not-policy-lab', version: '1.0.0' },
+  { name: 'two-layer-agent-contract-lab', version: '1.0.0' },
   { capabilities: { tools: {} } }
 );
 

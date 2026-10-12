@@ -1,6 +1,6 @@
 # Contract Tests — Two-Layer Agent Contract
 
-These tests prove that the enforcement boundary in the guidance-is-not-policy
+These tests prove that the enforcement boundary in the two-layer-agent-contract
 reference implementation is a runtime mechanism, not a story about what the model
 was told to do.
 

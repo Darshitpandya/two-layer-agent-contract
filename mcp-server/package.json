@@ -1,5 +1,5 @@
 {
-  "name": "guidance-is-not-policy-mcp-server",
+  "name": "two-layer-agent-contract-mcp-server",
   "version": "1.0.0",
   "description": "Lab MCP server for the Two-Layer Agent Contract reference implementation",
   "main": "dist/index.js",

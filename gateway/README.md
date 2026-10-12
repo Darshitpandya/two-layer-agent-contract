@@ -1,6 +1,6 @@
 # Gateway: agentgateway + ExtMCP Policy Processor
 
-This directory contains two components that form the **enforcement plane** for the `guidance-is-not-policy` architecture:
+This directory contains two components that form the **enforcement plane** for the `two-layer-agent-contract` architecture:
 
 1. `config.yaml` — agentgateway v1.5 configuration (coarse-grained, tool-name-level authz)
 2. `extmcp-policy/` — ExtMCP request-phase policy processor (fine-grained, argument-level authz)

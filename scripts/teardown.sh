@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "==> guidance-is-not-policy: teardown"
+echo "==> two-layer-agent-contract: teardown"
 
 # Stop gateway container
 if docker ps --filter name=guidance-gateway --format '{{.Names}}' | grep -q guidance-gateway; then

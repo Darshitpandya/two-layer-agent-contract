@@ -1,5 +1,5 @@
 {
-  "name": "guidance-is-not-policy-extmcp-policy",
+  "name": "two-layer-agent-contract-extmcp-policy",
   "version": "1.0.0",
   "description": "ExtMCP request-phase policy processor: argument-sensitive MCP authorization",
   "main": "dist/policy.js",

@@ -2,7 +2,7 @@
 
 **Talk:** Intent Is Not Policy: The Two-Layer Contract for Production Agents  
 **Event:** Agentic Engineering Day NZ  
-**Repo:** guidance-is-not-policy  
+**Repo:** two-layer-agent-contract  
 **Branch:** auditing  
 **Verified by:** FINAL_RELEASE_GATE.md — 37/37 tests pass, `make verify` exits 0
 
@@ -52,7 +52,7 @@ make verify
 
 **Expected output — `make up`:**
 ```
-Starting guidance-is-not-policy stack...
+Starting two-layer-agent-contract stack...
 Default topology: mcp-server port 3001 is internal-only.
 [docker compose up --build output]
 Stack running.  Run: make session

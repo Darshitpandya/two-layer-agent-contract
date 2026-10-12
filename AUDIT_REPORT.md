@@ -1,6 +1,6 @@
 # Repository Audit
 
-**Audited:** guidance-is-not-policy  
+**Audited:** two-layer-agent-contract  
 **Branch:** auditing (from main at 5e3e454)  
 **Audit date:** 2026-10-06  
 **Auditor role:** Independent Principal Engineer  
@@ -252,8 +252,8 @@ Contract tests hit real agentgateway v1.5.0. Backend call log populated by actua
 **Minimum path from clone to proof:**
 
 ```
-git clone https://github.com/Darshitpandya/guidance-is-not-policy.git
-cd guidance-is-not-policy
+git clone https://github.com/Darshitpandya/two-layer-agent-contract.git
+cd two-layer-agent-contract
 make up
 make session
 make step1

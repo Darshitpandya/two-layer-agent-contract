@@ -1,4 +1,4 @@
-# Contributing to guidance-is-not-policy
+# Contributing to two-layer-agent-contract
 
 ## Why contributions matter
 

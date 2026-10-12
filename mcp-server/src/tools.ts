@@ -1,5 +1,5 @@
 /**
- * Tool definitions and handlers for the guidance-is-not-policy lab MCP server.
+ * Tool definitions and handlers for the two-layer-agent-contract lab MCP server.
  *
  * Exposes three tools that demonstrate the enforcement boundary between
  * agent guidance (system prompt) and policy (gateway enforcement):
