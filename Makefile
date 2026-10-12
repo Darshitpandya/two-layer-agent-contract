@@ -1,4 +1,4 @@
-# guidance-is-not-policy — Makefile
+# two-layer-agent-contract — Makefile
 #
 # Usage:
 #   make up              start the full Docker stack (default: no port 3001)
@@ -44,7 +44,7 @@ LABEL   = printf '$(BOLD)$(CYAN)%-12s$(RESET) %s\n'
 # ---------------------------------------------------------------------------
 
 up:
-	@printf '$(BOLD)Starting guidance-is-not-policy stack...$(RESET)\n'
+	@printf '$(BOLD)Starting two-layer-agent-contract stack...$(RESET)\n'
 	@printf '$(DIM)Default topology: mcp-server port 3001 is internal-only.$(RESET)\n'
 	docker compose up --build -d
 	@printf '\n$(DIM)Waiting for containers to be healthy...$(RESET)\n'
@@ -165,9 +165,9 @@ show-deny:
 	  2>/dev/null
 	@printf '\n'
 	@printf '\033[38;2;148;163;184mpolicy log:\033[0m\n'
-	@docker logs guidance-policy 2>&1 | grep 'POLICY.*deploy.*DENY' | tail -1 | \
+	@docker logs tlac-policy 2>&1 | grep 'POLICY.*deploy.*DENY' | tail -1 | \
 	  sed 's/\[POLICY\] /  /' | sed 's/tools\/call //' \
-	  || printf '  \033[38;2;148;163;184m(see: docker logs guidance-policy)\033[0m\n'
+	  || printf '  \033[38;2;148;163;184m(see: docker logs tlac-policy)\033[0m\n'
 	@printf '\n'
 	@printf '\033[38;2;148;163;184mbackend receipt:\033[0m\n'
 	@curl -s http://localhost:3009/test/log | python3 -c \
@@ -226,7 +226,7 @@ show-fail-closed:
 	@printf '\033[38;2;148;163;184mpolicy processor stopped. even allowed calls are blocked.\033[0m\n'
 	@printf '\n'
 	@printf '\033[38;2;148;163;184mstopping policy processor...\033[0m\n'
-	@docker stop guidance-policy > /dev/null
+	@docker stop tlac-policy > /dev/null
 	@sleep 3
 	@printf '\033[38;2;251;113;133mpolicy: STOPPED\033[0m\n\n'
 	@printf '\033[38;2;148;163;184mdeploy(environment=staging) — policy down:\033[0m\n'
@@ -244,7 +244,7 @@ show-fail-closed:
 	  2>/dev/null
 	@printf '\n\033[38;2;251;113;133mfailClosed: no policy decision = request not forwarded\033[0m\n'
 	@printf '\n\033[38;2;148;163;184mrestarting policy processor...\033[0m\n'
-	@docker start guidance-policy > /dev/null
+	@docker start tlac-policy > /dev/null
 	@sleep 3
 	@printf '\033[38;2;52;211;153mpolicy: RUNNING\033[0m  '
 	@curl -s http://localhost:3002/health

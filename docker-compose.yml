@@ -1,4 +1,4 @@
-# guidance-is-not-policy — full Docker Compose stack
+# two-layer-agent-contract — full Docker Compose stack
 #
 # DEFAULT TOPOLOGY (no extra flags):
 #   mcp-server     internal only  Lab MCP server (streamable HTTP)
@@ -40,7 +40,7 @@ services:
     build:
       context: ./mcp-server
       dockerfile: Dockerfile
-    container_name: guidance-mcp-server
+    container_name: tlac-mcp-server
     # Port 3001 (MCP protocol) NOT published — internal only. Enforces gateway chokepoint.
     # Port 3009 (test support only) published — exposes /health and /test/log for
     # contract tests running on the host. No MCP protocol access on this port.
@@ -65,7 +65,7 @@ services:
     build:
       context: ./gateway/extmcp-policy
       dockerfile: Dockerfile
-    container_name: guidance-policy
+    container_name: tlac-policy
     ports:
       - "9001:9001"   # gRPC (h2c) — agentgateway connects here
       - "3002:3002"   # HTTP health — contract tests connect here
@@ -87,7 +87,7 @@ services:
   # -------------------------------------------------------------------------
   gateway:
     image: ghcr.io/agentgateway/agentgateway:v1.5.0
-    container_name: guidance-gateway
+    container_name: tlac-gateway
     ports:
       - "3000:3000"
     volumes:
