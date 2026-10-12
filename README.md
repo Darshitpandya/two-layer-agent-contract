@@ -64,6 +64,8 @@ Three containers, one enforcement boundary:
 
 ![The Two-Layer Agent Contract — guidance plane influences candidate action, enforcement plane determines executable authority](docs/assets/two-layer-contract.gif)
 
+*Diagram created with [Archify](https://github.com/tt-a1i/archify) — open-source agent skill for turning architectural ideas into interactive visuals.*
+
 ---
 
 ## Running the demo
