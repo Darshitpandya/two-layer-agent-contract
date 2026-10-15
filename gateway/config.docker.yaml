@@ -1,0 +1,50 @@
+# agentgateway v1.5.0 configuration — Docker Compose variant
+#
+# Identical policy to config.yaml but uses Docker Compose service names
+# for inter-container networking instead of host.docker.internal.
+#
+#   config.yaml          → for ./scripts/run-lab.sh (Node.js + Docker)
+#   config.docker.yaml  → for docker compose up    (all containers)
+#
+# Service hostnames (resolved by Docker internal DNS):
+#   mcp-server:3001   Lab MCP server
+#   policy:9001       ExtMCP gRPC processor
+
+gateways:
+  default:
+    port: 3000
+
+routes:
+- policies:
+
+    # -----------------------------------------------------------------------
+    # LAYER 1: Tool-name authorization (mcpAuthorization)
+    # production_admin: absent → HIDDEN from tools/list, DENIED if called directly
+    # mcp.tool.arguments NOT available here (agentgateway v1.5 limitation)
+    # -----------------------------------------------------------------------
+    mcpAuthorization:
+      rules:
+      - 'mcp.tool.name == "status"'
+      - 'mcp.tool.name == "deploy"'
+
+    # -----------------------------------------------------------------------
+    # LAYER 2: Argument-sensitive enforcement (mcpGuardrails gRPC)
+    # ExtMCP gRPC processor sees full tool arguments before backend execution
+    # deploy(environment="production") → DENY
+    # deploy(environment="staging")    → Pass
+    # failClosed: policy processor unavailable → request not forwarded
+    # -----------------------------------------------------------------------
+    mcpGuardrails:
+      processors:
+      - kind: remote
+        host: "policy:9001"          # Docker Compose service name
+        failureMode: failClosed
+        methods:
+          tools/call: request
+
+  backends:
+  - mcp:
+      targets:
+      - name: lab-mcp-server
+        mcp:
+          host: "http://mcp-server:3001/mcp"   # Docker Compose service name
