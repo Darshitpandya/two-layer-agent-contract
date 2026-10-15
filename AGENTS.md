@@ -19,6 +19,14 @@ It demonstrates that guidance influences candidate behaviour while runtime polic
 
 ## Development commands
 
+### Full lab (recommended)
+```
+make up       # start Docker Compose stack
+make session  # initialize MCP session
+make verify   # run all 34 tests
+make down     # stop stack
+```
+
 ### MCP server
 ```
 cd mcp-server
@@ -42,11 +50,6 @@ npm install
 npm test
 ```
 
-### Full lab
-```
-./scripts/run-lab.sh
-```
-
 ## Deployment guidance
 Deployment work in this repository targets **staging** environments.
 The lab MCP server's deploy tool accepts both staging and production arguments,
@@ -63,8 +66,8 @@ This boundary is intentional and is the point of the demonstration.
 
 ## Before opening a pull request
 - Run `npm run typecheck` in any package you modified
-- Run `npm test` in `contract-tests/` if you changed policy or gateway config
-- Run `./scripts/run-lab.sh` to verify the full stack starts cleanly
+- Run `make test` if you changed policy or gateway config
+- Run `make verify` to confirm all 34 tests pass
 
 ## What this guidance file is not
 This file shapes agent behaviour in this repository.

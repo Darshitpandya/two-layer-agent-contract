@@ -8,12 +8,14 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -23,21 +25,13 @@ jobs:
             contract-tests/package-lock.json
 
       # MCP server
-      - name: Install MCP server dependencies
-        run: npm ci
-        working-directory: mcp-server
-
-      - name: Build MCP server
-        run: npm run build
+      - name: Install and build MCP server
+        run: npm ci && npm run build
         working-directory: mcp-server
 
       # ExtMCP policy processor
-      - name: Install policy processor dependencies
-        run: npm ci
-        working-directory: gateway/extmcp-policy
-
-      - name: Build policy processor
-        run: npm run build
+      - name: Install and build policy processor
+        run: npm ci && npm run build
         working-directory: gateway/extmcp-policy
 
       - name: Run policy unit tests
@@ -53,8 +47,6 @@ jobs:
         run: npx tsc --noEmit
         working-directory: contract-tests
 
-      # Note: Integration contract tests (allowed, hidden, denied, arg-sensitive, fail-closed)
-      # require a running agentgateway instance and lab MCP server, and are executed locally
-      # via ./scripts/run-lab.sh. They are not run in CI to keep this workflow fast and
-      # free of infrastructure dependencies.
-      # See contract-tests/README.md for how to run the full integration suite.
+      # Note: Integration contract tests require a running agentgateway instance.
+      # Run locally with: make up && make session && make verify
+      # See contract-tests/README.md for details.

@@ -4,7 +4,8 @@
 
 <p align="center">
   <strong>Guidance influences what an agent does. Enforcement determines what it can execute.</strong><br>
-  These are separate mechanisms. This repo proves it.
+  These are separate mechanisms. This repo proves it.<br><br>
+  Built by an <a href="https://aaif.io/ambassadors?q=darshit+pandya">AAIF Ambassador</a> — agentgateway and MCP are <a href="https://aaif.io">Linux Foundation AAIF</a> projects.
 </p>
 
 <p align="center">
@@ -20,6 +21,7 @@
   <a href="https://x.com/darshitpandya_"><img src="https://img.shields.io/badge/X-%40darshitpandya_-000000?logo=x" alt="X"></a>
   <a href="https://linkedin.com/in/darshitpandya"><img src="https://img.shields.io/badge/LinkedIn-Darshit%20Pandya-0077b5?logo=linkedin" alt="LinkedIn"></a>
   <a href="https://platformpioneer.io"><img src="https://img.shields.io/badge/website-platformpioneer.io-fb7185" alt="platformpioneer.io"></a>
+  <a href="https://aaif.io/ambassadors?q=darshit+pandya"><img src="https://img.shields.io/badge/AAIF-Ambassador-818cf8" alt="AAIF Ambassador"></a>
 </p>
 
 ---
@@ -69,7 +71,7 @@ AGENTS.md  →  Agent decision  →  agentgateway  →  MCP server
  (intent)      (candidate)        (enforcement)    (capability)
 ```
 
-![The Two-Layer Agent Contract](docs/assets/two-layer-contract.gif)
+![The Two-Layer Agent Contract](docs/assets/arch-two-layer-contract.gif)
 
 *Diagram by [Archify](https://github.com/tt-a1i/archify)*
 

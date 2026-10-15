@@ -47,4 +47,4 @@ for pkg in mcp-server gateway/extmcp-policy; do
 done
 
 echo ""
-echo "Setup complete. Run ./scripts/run-lab.sh to start the lab."
+echo "Setup complete. Run: make up"

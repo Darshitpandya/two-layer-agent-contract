@@ -15,7 +15,7 @@ The following tools are available through the MCP gateway for the `lab-agent` id
 - `deploy` — deploy a version to an environment
 
 ## Task
-See task.md in this directory for the current deployment task.
+See demo-task.md in this directory for the current deployment task.
 
 ## Important
 This guidance informs tool selection. The runtime MCP surface independently enforces

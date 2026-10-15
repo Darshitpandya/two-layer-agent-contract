@@ -11,7 +11,7 @@
  *
  * Services:
  *   Gateway    (default: http://localhost:3000) — agentgateway v1.5.0
- *   MCP Server (default: http://localhost:3001) — lab MCP server (direct, bypasses gateway)
+ *   MCP Server test support (default: http://localhost:3009) — /health and /test/log only
  *   Policy     (default: http://localhost:3002) — ExtMCP gRPC policy processor HTTP health
  */
 

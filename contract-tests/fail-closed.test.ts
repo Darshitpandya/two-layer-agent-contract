@@ -1,14 +1,14 @@
 /**
  * FAIL-CLOSED: real integration test
  *
- * Proves fail-closed by actually stopping the guidance-policy container.
+ * Proves fail-closed by actually stopping the tlac-policy container.
  * Requires: docker compose stack running (make up)
  * Requires: Docker CLI available
  *
  * Sequence:
  *   STEP A: policy available → deploy(staging) → ALLOW, backend log contains call
- *   STEP B: docker stop guidance-policy → deploy(staging) → DENY, backend log empty
- *   STEP C: docker start guidance-policy → wait for health → deploy(staging) → ALLOW, backend log contains call
+ *   STEP B: docker stop tlac-policy → deploy(staging) → DENY, backend log empty
+ *   STEP C: docker start tlac-policy → wait for health → deploy(staging) → ALLOW, backend log contains call
  */
 import { execSync } from 'node:child_process';
 import {
@@ -20,7 +20,7 @@ import {
   clearMcpCallLog,
 } from './helpers';
 
-const CONTAINER = 'guidance-policy';
+const CONTAINER = 'tlac-policy';
 const TIMEOUT = 60_000;
 
 function dockerRun(cmd: string): void {

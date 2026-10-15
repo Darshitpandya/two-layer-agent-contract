@@ -3,8 +3,8 @@
 # Identical policy to config.yaml but uses Docker Compose service names
 # for inter-container networking instead of host.docker.internal.
 #
-#   config.yaml          → for ./scripts/run-lab.sh (Node.js + Docker)
-#   config.docker.yaml  → for docker compose up    (all containers)
+#   config.yaml          → for ./scripts/run-lab.sh (Node.js + Docker direct)
+#   config.docker.yaml  → for make up / docker compose up (all containers)
 #
 # Service hostnames (resolved by Docker internal DNS):
 #   mcp-server:3001   Lab MCP server
