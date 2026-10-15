@@ -2,6 +2,10 @@
 
 This document explains the Two-Layer Agent Contract for readers who want to understand the pattern fully — without the slides, without the live demo, with enough detail to apply it to their own systems.
 
+![The Two-Layer Agent Contract](assets/arch-two-layer-contract.gif)
+
+*Diagram by [Archify](https://github.com/tt-a1i/archify)*
+
 The short version: guidance influences what an agent proposes. Enforcement determines what an agent can execute. These are not the same contract, and they must not be implemented as the same mechanism.
 
 ---
