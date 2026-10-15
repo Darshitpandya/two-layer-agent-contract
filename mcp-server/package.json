@@ -1,5 +1,5 @@
 {
-  "name": "guidance-is-not-policy-mcp-server",
+  "name": "two-layer-agent-contract-mcp-server",
   "version": "1.0.0",
   "description": "Lab MCP server for the Two-Layer Agent Contract reference implementation",
   "main": "dist/index.js",
@@ -10,9 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.10.2"
+    "@modelcontextprotocol/sdk": "1.10.2",
+    "express": "4.21.2"
   },
   "devDependencies": {
+    "@types/express": "5.0.0",
     "@types/node": "22.10.2",
     "ts-node": "10.9.2",
     "typescript": "5.7.3"
