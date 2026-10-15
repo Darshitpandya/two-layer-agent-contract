@@ -1,0 +1,32 @@
+# =============================================================================
+# EVIDENCE PROFILE OVERRIDE — docker-compose.direct.yml
+#
+# !! WARNING: DO NOT USE IN PRODUCTION !!
+#
+# This override intentionally exposes mcp-server port 3001, bound to the
+# loopback interface (127.0.0.1), for the purpose of direct backend
+# comparison during conference demonstrations and security audits.
+#
+# Exposing the backend port allows an agent to call mcp-server directly,
+# bypassing agentgateway's enforcement plane. This is the vulnerability
+# being demonstrated — NOT a secure topology.
+#
+# Usage (evidence/debug mode):
+#   docker compose -f docker-compose.yml -f docker-compose.direct.yml up --build
+#   docker compose -f docker-compose.yml -f docker-compose.direct.yml down
+#
+# Or via Makefile:
+#   make up-evidence
+#
+# The port is bound to 127.0.0.1 only — it is NOT reachable from external
+# hosts or other containers on remote networks. Loopback binding is
+# intentional: it permits local demonstration without exposing the port on
+# all interfaces.
+# =============================================================================
+
+services:
+  mcp-server:
+    # Loopback-bound port 3001 for direct backend comparison.
+    # See WARNING above — this intentionally bypasses agentgateway.
+    ports:
+      - "127.0.0.1:3001:3001"  # loopback only — not routable externally
