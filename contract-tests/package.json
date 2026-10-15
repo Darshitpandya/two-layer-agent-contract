@@ -1,5 +1,5 @@
 {
-  "name": "guidance-is-not-policy-contract-tests",
+  "name": "two-layer-agent-contract-contract-tests",
   "version": "1.0.0",
   "description": "Contract tests proving the Two-Layer Agent Contract enforcement boundary",
   "scripts": {
